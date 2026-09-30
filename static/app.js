@@ -1,0 +1,818 @@
+// Main Application Logic for The Resistance: Office Heist
+
+let gameState = null;
+let ws = null;
+let timerInterval = null;
+let timerSeconds = 90;
+let isTimerRunning = false;
+let selectedOperatives = new Set();
+let currentKioskPlayer = null;
+
+// Connect to WebSocket for instant live state sync
+function connectWebSocket() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  
+  ws = new WebSocket(wsUrl);
+  
+  ws.onopen = () => {
+    console.log('Connected to Office Heist WebSocket');
+  };
+  
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'STATE_UPDATE' || data.type === 'PROPOSAL_RESULT_ANNOUNCED') {
+        updateState(data.state);
+      } else if (data.type === 'MISSION_REVEAL') {
+        handleMissionReveal(data);
+      } else if (data.type === 'VOTE_CAST') {
+        document.getElementById('liveVotesCount').innerText = data.total_votes;
+        window.soundFx.playClick();
+      } else if (data.type === 'MISSION_ACTION_SUBMITTED') {
+        document.getElementById('submissionCounter').innerText = data.submissions_count;
+        window.soundFx.playClick();
+      }
+    } catch (e) {
+      console.error('Error handling WS message:', e);
+    }
+  };
+  
+  ws.onclose = () => {
+    console.log('WS disconnected. Reconnecting in 2s...');
+    setTimeout(connectWebSocket, 2000);
+  };
+}
+
+// Fetch initial state via REST
+async function fetchState() {
+  try {
+    const pin = sessionStorage.getItem('heist_mod_pin') || '';
+    const url = pin ? `/api/state?role=moderator&pin=${encodeURIComponent(pin)}` : '/api/state?role=public';
+    const res = await fetch(url);
+    const data = await res.json();
+    updateState(data);
+  } catch (e) {
+    console.error('Error fetching initial state:', e);
+  }
+}
+
+// Update UI based on Game State
+function updateState(state) {
+  gameState = state;
+  renderScoreboard();
+  renderMissionsTrack();
+  renderPhase();
+  renderModeratorDrawer();
+}
+
+// Render Scoreboard & Proposal Attempts
+function renderScoreboard() {
+  if (!gameState) return;
+  
+  document.getElementById('resScore').innerText = gameState.resistance_score;
+  document.getElementById('sabScore').innerText = gameState.saboteur_score;
+  
+  // Attempts dots
+  const dotsContainer = document.getElementById('attemptsDots');
+  dotsContainer.innerHTML = '';
+  const maxAttempts = gameState.max_proposal_attempts || 5;
+  const currentAttempt = gameState.proposal_attempt || 1;
+  
+  for (let i = 1; i <= maxAttempts; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'attempt-dot';
+    if (i < currentAttempt) {
+      dot.classList.add('active');
+    } else if (i === currentAttempt) {
+      dot.classList.add('active');
+      if (currentAttempt >= 4) dot.classList.add('danger');
+    }
+    dotsContainer.appendChild(dot);
+  }
+  
+  const warn = document.getElementById('attemptWarning');
+  if (currentAttempt === 5) {
+    warn.innerText = '⚠️ FINAL ATTEMPT! If rejected, Saboteurs win!';
+  } else if (currentAttempt === 4) {
+    warn.innerText = '⚠️ Warning: 4th attempt!';
+  } else {
+    warn.innerText = '';
+  }
+}
+
+// Render 5 Missions Bar
+function renderMissionsTrack() {
+  if (!gameState) return;
+  const container = document.getElementById('missionsRow');
+  container.innerHTML = '';
+  
+  const teamSizes = gameState.mission_team_sizes || [5, 6, 6, 7, 7];
+  const results = gameState.mission_results || [null, null, null, null, null];
+  const curIdx = gameState.current_mission - 1;
+  
+  teamSizes.forEach((size, idx) => {
+    const node = document.createElement('div');
+    node.className = 'mission-node';
+    
+    const res = results[idx];
+    if (res === 'SUCCESS') {
+      node.classList.add('success');
+    } else if (res === 'FAILED') {
+      node.classList.add('failed');
+    } else if (idx === curIdx && !gameState.game_over) {
+      node.classList.add('active');
+    }
+    
+    let statusText = 'Pending';
+    let statusClass = 'status-pending';
+    if (res === 'SUCCESS') {
+      statusText = 'Passed ✅';
+      statusClass = 'status-success';
+    } else if (res === 'FAILED') {
+      statusText = 'Failed ❌';
+      statusClass = 'status-failed';
+    } else if (idx === curIdx && !gameState.game_over) {
+      statusText = 'Current';
+      statusClass = 'status-active';
+    }
+    
+    node.innerHTML = `
+      <div class="node-title">Mission ${idx + 1}</div>
+      <div class="node-size">${size} 👥</div>
+      <div class="node-status ${statusClass}">${statusText}</div>
+    `;
+    container.appendChild(node);
+  });
+}
+
+// Render the active phase
+function renderPhase() {
+  if (!gameState) return;
+  
+  const phases = ['phaseSetup', 'phaseProposal', 'phaseDebate', 'phaseProposalResult', 'phaseMissionAction', 'phaseGameOver'];
+  phases.forEach(id => document.getElementById(id).style.display = 'none');
+  
+  if (gameState.phase === 'SETUP') {
+    renderSetupPhase();
+  } else if (gameState.phase === 'LEADER_PROPOSAL') {
+    renderProposalPhase();
+  } else if (gameState.phase === 'DEBATE_AND_VOTE') {
+    renderDebatePhase();
+  } else if (gameState.phase === 'PROPOSAL_RESULT') {
+    renderProposalResultPhase();
+  } else if (gameState.phase === 'MISSION_ACTION') {
+    renderMissionActionPhase();
+  } else if (gameState.phase === 'GAME_OVER') {
+    renderGameOverPhase();
+  }
+}
+
+// PHASE: SETUP
+function renderSetupPhase() {
+  const p = document.getElementById('phaseSetup');
+  p.style.display = 'block';
+  
+  document.getElementById('setupPlayerCount').innerText = gameState.players.length;
+  const grid = document.getElementById('setupRosterGrid');
+  grid.innerHTML = '';
+  
+  gameState.players.forEach(name => {
+    const chip = document.createElement('div');
+    chip.className = 'player-chip';
+    chip.innerHTML = `
+      <div class="chip-name">${name}</div>
+      <div class="chip-role-badge">Operative</div>
+    `;
+    grid.appendChild(chip);
+  });
+}
+
+// PHASE: LEADER PROPOSAL
+function renderProposalPhase() {
+  const p = document.getElementById('phaseProposal');
+  p.style.display = 'block';
+  
+  document.getElementById('leaderNameDisplay').innerText = gameState.current_leader || 'None';
+  document.getElementById('currentMissionNum').innerText = gameState.current_mission;
+  document.getElementById('requiredTeamSize').innerText = gameState.required_team_size;
+  
+  selectedOperatives.clear();
+  updateProposalCounter();
+  
+  const grid = document.getElementById('proposalRosterGrid');
+  grid.innerHTML = '';
+  
+  gameState.players.forEach(name => {
+    const chip = document.createElement('div');
+    chip.className = 'player-chip';
+    if (name === gameState.current_leader) chip.classList.add('is-leader');
+    
+    chip.innerHTML = `
+      <div class="chip-name">${name}</div>
+      <div class="chip-role-badge">${name === gameState.current_leader ? '👑 Leader' : 'Available'}</div>
+    `;
+    
+    chip.onclick = () => {
+      window.soundFx.playClick();
+      if (selectedOperatives.has(name)) {
+        selectedOperatives.delete(name);
+        chip.classList.remove('selected');
+      } else {
+        if (selectedOperatives.size < gameState.required_team_size) {
+          selectedOperatives.add(name);
+          chip.classList.add('selected');
+        }
+      }
+      updateProposalCounter();
+    };
+    
+    grid.appendChild(chip);
+  });
+}
+
+function updateProposalCounter() {
+  const counter = document.getElementById('selectionCounter');
+  const btn = document.getElementById('btnConfirmProposal');
+  const size = selectedOperatives.size;
+  const req = gameState.required_team_size;
+  
+  counter.innerText = `${size} / ${req} Selected`;
+  if (size === req) {
+    btn.disabled = false;
+    counter.style.color = 'var(--success-green)';
+  } else {
+    btn.disabled = true;
+    counter.style.color = 'var(--resistance-blue)';
+  }
+}
+
+// PHASE: DEBATE AND VOTE
+function renderDebatePhase() {
+  const p = document.getElementById('phaseDebate');
+  p.style.display = 'block';
+  
+  document.getElementById('spotlightCount').innerText = gameState.proposed_team.length;
+  const container = document.getElementById('proposedTeamChips');
+  container.innerHTML = '';
+  
+  gameState.proposed_team.forEach(name => {
+    const badge = document.createElement('div');
+    badge.className = 'agent-badge';
+    badge.innerHTML = `🕵️‍♂️ ${name}`;
+    container.appendChild(badge);
+  });
+  
+  // Set default tally
+  const half = Math.ceil(gameState.players.length / 2);
+  document.getElementById('tallyYes').innerText = half + 1;
+  document.getElementById('tallyNo').innerText = gameState.players.length - (half + 1);
+  document.getElementById('liveVotesCount').innerText = gameState.proposal_votes_count || 0;
+  
+  resetTimer(90);
+}
+
+// PHASE: PROPOSAL RESULT
+function renderProposalResultPhase() {
+  const p = document.getElementById('phaseProposalResult');
+  p.style.display = 'block';
+}
+
+// PHASE: MISSION ACTION
+function renderMissionActionPhase() {
+  const p = document.getElementById('phaseMissionAction');
+  p.style.display = 'block';
+  
+  document.getElementById('missionActionNum').innerText = gameState.current_mission;
+  document.getElementById('missionActionCount').innerText = gameState.proposed_team.length;
+  document.getElementById('submissionCounter').innerText = gameState.mission_submissions_count || 0;
+  document.getElementById('submissionTotal').innerText = gameState.proposed_team.length;
+  
+  // Reset manual counters
+  document.getElementById('manualSuccessCount').innerText = '0';
+  document.getElementById('manualSabotageCount').innerText = '0';
+  
+  // Kiosk buttons for each operative on team
+  const kioskList = document.getElementById('kioskOperativesList');
+  kioskList.innerHTML = '';
+  
+  gameState.proposed_team.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-icon';
+    btn.style.padding = '10px 14px';
+    btn.innerText = `👤 ${name}`;
+    btn.onclick = () => openKioskModal(name);
+    kioskList.appendChild(btn);
+  });
+}
+
+// PHASE: GAME OVER
+function renderGameOverPhase() {
+  const p = document.getElementById('phaseGameOver');
+  p.style.display = 'block';
+  
+  const isRes = gameState.winner === 'Resistance';
+  document.getElementById('gameOverIcon').innerText = isRes ? '🏆' : '😈';
+  document.getElementById('gameOverTitle').innerText = isRes ? 'RESISTANCE VICTORY!' : 'SABOTEURS VICTORY!';
+  document.getElementById('gameOverTitle').style.color = isRes ? 'var(--resistance-blue)' : 'var(--saboteur-red)';
+  document.getElementById('gameOverDesc').innerText = isRes 
+    ? 'The loyal office team successfully completed 3 missions and cracked the vault without getting sabotaged!'
+    : 'The secret saboteurs successfully infiltrated and compromised 3 missions!';
+    
+  // Render saboteurs list
+  const sabList = document.getElementById('gameOverSaboteursList');
+  sabList.innerHTML = '';
+  if (gameState.saboteurs) {
+    gameState.saboteurs.forEach(name => {
+      const chip = document.createElement('div');
+      chip.className = 'agent-badge';
+      chip.style.borderColor = 'var(--saboteur-red)';
+      chip.style.background = 'rgba(255, 51, 102, 0.2)';
+      chip.innerHTML = `😈 <strong>${name}</strong>`;
+      sabList.appendChild(chip);
+    });
+  }
+}
+
+// Handle Dramatic Mission Reveal
+function handleMissionReveal(data) {
+  const modal = document.getElementById('revealModal');
+  const card = document.getElementById('revealCard');
+  const icon = document.getElementById('revealAnimIcon');
+  const title = document.getElementById('revealTitle');
+  const subtitle = document.getElementById('revealSubtitle');
+  const btnContainer = document.getElementById('revealButtonContainer');
+  
+  modal.classList.add('open');
+  card.className = 'reveal-card';
+  btnContainer.style.display = 'none';
+  
+  icon.innerText = '🔐';
+  title.innerText = 'SHUFFLING SECRET REPORTS...';
+  subtitle.innerText = 'Mixing encrypted submissions in the office vault...';
+  
+  window.soundFx.playSuspenseDrum();
+  
+  // Dramatic suspense timing
+  setTimeout(() => {
+    window.soundFx.playSuspenseDrum();
+    icon.innerText = '⚡';
+    title.innerText = 'ANALYZING VAULT INTEGRITY...';
+  }, 1600);
+  
+  setTimeout(() => {
+    const isSuccess = data.is_success;
+    if (isSuccess) {
+      window.soundFx.playSuccessFanfare();
+      card.classList.add('revealed-success');
+      icon.innerText = '🎉';
+      title.innerText = 'MISSION ACCOMPLISHED!';
+      title.style.color = 'var(--success-green)';
+      subtitle.innerText = 'The vault security was bypassed cleanly! Resistance earns +1 Point!';
+    } else {
+      window.soundFx.playFailureAlarm();
+      card.classList.add('revealed-failed');
+      icon.innerText = '🚨';
+      // IMPORTANT USER RULE: Never tell players how many Saboteurs are on a failed mission; say only “Mission failed.”
+      title.innerText = 'MISSION FAILED!';
+      title.style.color = 'var(--saboteur-red)';
+      subtitle.innerText = 'Sabotage detected in the heist operation! Saboteurs earn +1 Point!';
+    }
+    btnContainer.style.display = 'block';
+  }, 3200);
+}
+
+// Render Moderator Drawer Content
+async function renderModeratorDrawer() {
+  if (!gameState) return;
+  const pin = sessionStorage.getItem('heist_mod_pin');
+  if (!pin) return;
+  
+  // Whispers
+  try {
+    const res = await fetch(`/api/whispers?pin=${encodeURIComponent(pin)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const list = document.getElementById('modWhispersList');
+    list.innerHTML = '';
+    
+    data.messages.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'whisper-card';
+      card.innerHTML = `
+        <div class="whisper-card-header">
+          <strong style="color: var(--saboteur-red);">😈 ${item.player}</strong>
+          <button class="btn-icon" style="font-size: 11px; padding: 4px 8px;" onclick="copyWhisper('${encodeURIComponent(item.message)}')">
+            📋 Copy Whisper
+          </button>
+        </div>
+        <div class="whisper-text">${item.message}</div>
+      `;
+      list.appendChild(card);
+    });
+  } catch (e) {
+    console.error('Error fetching whispers:', e);
+  }
+  
+  // Event Log
+  const logContainer = document.getElementById('modEventLog');
+  logContainer.innerHTML = '';
+  if (gameState.history_log) {
+    gameState.history_log.forEach(item => {
+      const el = document.createElement('div');
+      el.style.marginBottom = '6px';
+      el.innerHTML = `<span style="color: var(--gold-accent);">[M${item.mission}]</span> ${item.details}`;
+      logContainer.appendChild(el);
+    });
+  }
+}
+
+function copyWhisper(encodedMsg) {
+  const msg = decodeURIComponent(encodedMsg);
+  navigator.clipboard.writeText(msg).then(() => {
+    alert('Copied WhatsApp whisper text to clipboard!');
+  });
+}
+
+// Timer Functions
+function startTimer() {
+  if (isTimerRunning) return;
+  isTimerRunning = true;
+  window.soundFx.init();
+  timerInterval = setInterval(() => {
+    if (timerSeconds > 0) {
+      timerSeconds--;
+      updateTimerDisplay();
+      if (timerSeconds <= 10) {
+        window.soundFx.playWarning();
+      } else {
+        window.soundFx.playTick();
+      }
+    } else {
+      pauseTimer();
+      window.soundFx.playRejected();
+    }
+  }, 1000);
+}
+
+function pauseTimer() {
+  isTimerRunning = false;
+  clearInterval(timerInterval);
+}
+
+function resetTimer(secs = 90) {
+  pauseTimer();
+  timerSeconds = secs;
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timerSeconds / 60);
+  const s = timerSeconds % 60;
+  const str = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const el = document.getElementById('timerDisplay');
+  if (el) {
+    el.innerText = str;
+    if (timerSeconds <= 15) {
+      el.classList.add('warning');
+    } else {
+      el.classList.remove('warning');
+    }
+  }
+}
+
+// Kiosk Pass-the-Screen Handlers
+function openKioskModal(playerName) {
+  currentKioskPlayer = playerName;
+  document.getElementById('kioskPlayerName').innerText = playerName;
+  document.getElementById('kioskShield').style.display = 'block';
+  document.getElementById('kioskActionArea').style.display = 'none';
+  document.getElementById('kioskModal').classList.add('open');
+}
+
+// Wire Up Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
+  connectWebSocket();
+  fetchState();
+  
+  // Sound Toggle
+  document.getElementById('btnSound').onclick = () => {
+    const isMuted = window.soundFx.toggleMute();
+    document.getElementById('btnSound').innerHTML = isMuted ? '🔇 <span class="nav-btn-text">Sound OFF</span>' : '🔊 <span class="nav-btn-text">Sound ON</span>';
+  };
+  
+  // Fullscreen Toggle
+  document.getElementById('btnFullscreen').onclick = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+  
+  // Moderator Drawer Toggle with PIN Authentication
+  document.getElementById('btnModToggle').onclick = () => {
+    const savedPin = sessionStorage.getItem('heist_mod_pin');
+    if (savedPin) {
+      document.getElementById('modDrawer').classList.add('open');
+      renderModeratorDrawer();
+    } else {
+      document.getElementById('inputModPin').value = '';
+      document.getElementById('pinErrorMsg').style.display = 'none';
+      document.getElementById('modPinModal').classList.add('open');
+      setTimeout(() => document.getElementById('inputModPin').focus(), 100);
+    }
+  };
+
+  document.getElementById('btnSubmitPin').onclick = async () => {
+    const pin = document.getElementById('inputModPin').value.trim();
+    try {
+      const res = await fetch('/api/verify-mod-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin })
+      });
+      if (res.ok) {
+        sessionStorage.setItem('heist_mod_pin', pin);
+        document.getElementById('modPinModal').classList.remove('open');
+        document.getElementById('modDrawer').classList.add('open');
+        fetchState();
+      } else {
+        document.getElementById('pinErrorMsg').style.display = 'block';
+      }
+    } catch (e) {
+      document.getElementById('pinErrorMsg').style.display = 'block';
+    }
+  };
+
+  document.getElementById('btnCancelPin').onclick = () => {
+    document.getElementById('modPinModal').classList.remove('open');
+  };
+
+  document.getElementById('btnCloseMod').onclick = () => {
+    document.getElementById('modDrawer').classList.remove('open');
+  };
+  
+  // QR Modal & Google Form Toggle
+  let activeQrUrl = localStorage.getItem('heist_form_url') || '';
+  const inputForm = document.getElementById('inputGoogleFormUrl');
+  if (activeQrUrl) inputForm.value = activeQrUrl;
+
+  function renderQr(targetUrl) {
+    document.getElementById('qrUrlDisplay').innerText = targetUrl;
+    if (window.qrcode) {
+      const qr = qrcode(0, 'M');
+      qr.addData(targetUrl);
+      qr.make();
+      document.getElementById('qrCodeTarget').innerHTML = qr.createSvgTag(6, 0);
+    }
+  }
+
+  document.getElementById('btnQr').onclick = () => {
+    let localUrl = '';
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      localUrl = `${window.location.origin}/play`;
+    } else {
+      const ip = gameState ? gameState.local_ip : window.location.hostname;
+      const port = window.location.port || '8088';
+      localUrl = `http://${ip}:${port}/play`;
+    }
+    const urlToUse = activeQrUrl || localUrl;
+    renderQr(urlToUse);
+    document.getElementById('qrModal').classList.add('open');
+  };
+
+  document.getElementById('btnTabGoogleForm').onclick = () => {
+    document.getElementById('googleFormConfig').style.display = 'block';
+    document.getElementById('btnTabGoogleForm').style.background = 'rgba(0, 242, 254, 0.2)';
+    document.getElementById('btnTabGoogleForm').style.borderColor = 'var(--resistance-blue)';
+    document.getElementById('btnTabLocalPad').style.background = 'rgba(255,255,255,0.05)';
+    document.getElementById('btnTabLocalPad').style.borderColor = 'var(--border-subtle)';
+    if (activeQrUrl) renderQr(activeQrUrl);
+  };
+
+  document.getElementById('btnTabLocalPad').onclick = () => {
+    document.getElementById('googleFormConfig').style.display = 'none';
+    document.getElementById('btnTabLocalPad').style.background = 'rgba(0, 242, 254, 0.2)';
+    document.getElementById('btnTabLocalPad').style.borderColor = 'var(--resistance-blue)';
+    document.getElementById('btnTabGoogleForm').style.background = 'rgba(255,255,255,0.05)';
+    document.getElementById('btnTabGoogleForm').style.borderColor = 'var(--border-subtle)';
+    const ip = gameState ? gameState.local_ip : window.location.hostname;
+    const port = window.location.port || '8088';
+    renderQr(`http://${ip}:${port}/play`);
+  };
+
+  document.getElementById('btnUpdateGoogleForm').onclick = () => {
+    const val = inputForm.value.trim();
+    if (val) {
+      activeQrUrl = val;
+      localStorage.setItem('heist_form_url', val);
+      renderQr(val);
+      alert('QR code updated to your Google / MS Form link!');
+    }
+  };
+
+  document.getElementById('btnCloseQr').onclick = () => {
+    document.getElementById('qrModal').classList.remove('open');
+  };
+  
+  // Setup Actions
+  document.getElementById('btnStartGame').onclick = async () => {
+    window.soundFx.playClick();
+    await fetch('/api/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ players: gameState.players })
+    });
+    fetchState();
+  };
+  
+  // Rotate Leader
+  document.getElementById('btnRotateLeader').onclick = async () => {
+    window.soundFx.playClick();
+    await fetch('/api/rotate-leader-manually', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    fetchState();
+  };
+  
+  // Confirm Proposed Team
+  document.getElementById('btnConfirmProposal').onclick = async () => {
+    window.soundFx.playClick();
+    const team = Array.from(selectedOperatives);
+    await fetch('/api/propose-team', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team })
+    });
+    fetchState();
+  };
+  
+  // Timer buttons
+  document.getElementById('btnTimerStart').onclick = () => startTimer();
+  document.getElementById('btnTimerPause').onclick = () => pauseTimer();
+  document.getElementById('btnTimerReset').onclick = () => resetTimer(90);
+  
+  // Tally Yes/No buttons
+  const tallyYes = document.getElementById('tallyYes');
+  const tallyNo = document.getElementById('tallyNo');
+  document.getElementById('btnIncYes').onclick = () => { tallyYes.innerText = parseInt(tallyYes.innerText) + 1; };
+  document.getElementById('btnDecYes').onclick = () => { tallyYes.innerText = Math.max(0, parseInt(tallyYes.innerText) - 1); };
+  document.getElementById('btnIncNo').onclick = () => { tallyNo.innerText = parseInt(tallyNo.innerText) + 1; };
+  document.getElementById('btnDecNo').onclick = () => { tallyNo.innerText = Math.max(0, parseInt(tallyNo.innerText) - 1); };
+  
+  // Resolve Team Proposal Vote
+  document.getElementById('btnResolveProposalVote').onclick = async () => {
+    pauseTimer();
+    const yesCount = parseInt(tallyYes.innerText);
+    const noCount = parseInt(tallyNo.innerText);
+    
+    const res = await fetch('/api/resolve-proposal-vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yes_count: yesCount, no_count: noCount })
+    });
+    const result = await res.json();
+    
+    // Play sound
+    if (result.approved) {
+      window.soundFx.playApproved();
+    } else {
+      window.soundFx.playRejected();
+    }
+    
+    // Update banner
+    const banner = document.getElementById('proposalResultBanner');
+    const icon = document.getElementById('proposalResultIcon');
+    const title = document.getElementById('proposalResultTitle');
+    const details = document.getElementById('proposalResultDetails');
+    const proceedBtn = document.getElementById('btnProceedToMission');
+    
+    if (result.approved) {
+      banner.style.background = 'rgba(16, 185, 129, 0.15)';
+      banner.style.border = '2px solid var(--success-green)';
+      icon.innerText = '✅';
+      title.innerText = 'TEAM PROPOSAL APPROVED!';
+      title.style.color = 'var(--success-green)';
+      details.innerText = `${yesCount} Approved vs ${noCount} Rejected. The heist team enters the vault!`;
+      proceedBtn.style.display = 'inline-block';
+    } else {
+      banner.style.background = 'rgba(255, 51, 102, 0.15)';
+      banner.style.border = '2px solid var(--saboteur-red)';
+      icon.innerText = '❌';
+      title.innerText = 'TEAM PROPOSAL REJECTED!';
+      title.style.color = 'var(--saboteur-red)';
+      details.innerText = `${noCount} Rejected vs ${yesCount} Approved. Leader token passes clockwise!`;
+      proceedBtn.style.display = 'none';
+      setTimeout(() => fetchState(), 2500);
+    }
+    
+    document.getElementById('phaseDebate').style.display = 'none';
+    document.getElementById('phaseProposalResult').style.display = 'block';
+  };
+  
+  document.getElementById('btnProceedToMission').onclick = () => {
+    fetchState();
+  };
+  
+  // Manual Mission Tally S/F counters
+  const manSucc = document.getElementById('manualSuccessCount');
+  const manSabo = document.getElementById('manualSabotageCount');
+  document.getElementById('btnIncManualSuccess').onclick = () => { manSucc.innerText = parseInt(manSucc.innerText) + 1; };
+  document.getElementById('btnDecManualSuccess').onclick = () => { manSucc.innerText = Math.max(0, parseInt(manSucc.innerText) - 1); };
+  document.getElementById('btnIncManualSabotage').onclick = () => { manSabo.innerText = parseInt(manSabo.innerText) + 1; };
+  document.getElementById('btnDecManualSabotage').onclick = () => { manSabo.innerText = Math.max(0, parseInt(manSabo.innerText) - 1); };
+  
+  // Resolve Mission Outcome
+  document.getElementById('btnResolveMission').onclick = async () => {
+    window.soundFx.init();
+    const succ = parseInt(manSucc.innerText);
+    const sabo = parseInt(manSabo.innerText);
+    
+    let body = null;
+    if (succ + sabo > 0) {
+      body = JSON.stringify({ success_count: succ, sabotage_count: sabo });
+    }
+    
+    const res = await fetch('/api/resolve-mission', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body
+    });
+    const resData = await res.json();
+    handleMissionReveal({
+      is_success: resData.outcome === 'SUCCESS',
+      outcome: resData.outcome,
+      state: resData.state
+    });
+  };
+  
+  // Next Mission
+  document.getElementById('btnNextMission').onclick = async () => {
+    document.getElementById('revealModal').classList.remove('open');
+    await fetch('/api/next-mission', { method: 'POST' });
+    fetchState();
+  };
+  
+  // Restart Game
+  document.getElementById('btnRestartGame').onclick = async () => {
+    await fetch('/api/reset-game', { method: 'POST' });
+    fetchState();
+  };
+  
+  // Moderator manual overrides
+  document.getElementById('btnModForceLeader').onclick = async () => {
+    await fetch('/api/rotate-leader-manually', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    fetchState();
+  };
+  
+  document.getElementById('btnModResetGame').onclick = async () => {
+    if (confirm('Are you sure you want to reset the game back to setup?')) {
+      await fetch('/api/reset-game', { method: 'POST' });
+      document.getElementById('modDrawer').classList.remove('open');
+      fetchState();
+    }
+  };
+  
+  // Kiosk Modal Ready
+  document.getElementById('btnKioskReady').onclick = async () => {
+    document.getElementById('kioskShield').style.display = 'none';
+    document.getElementById('kioskActionArea').style.display = 'block';
+    
+    // Check if player is saboteur
+    const res = await fetch(`/api/state?player=${encodeURIComponent(currentKioskPlayer)}`);
+    const pState = await res.json();
+    
+    const banner = document.getElementById('kioskRoleBanner');
+    const sabBtn = document.getElementById('btnKioskSabotage');
+    
+    if (pState.is_saboteur) {
+      banner.style.background = 'rgba(255, 51, 102, 0.2)';
+      banner.style.color = 'var(--saboteur-red)';
+      banner.innerText = '😈 You are a SABOTEUR! You may choose Success or Sabotage.';
+      sabBtn.disabled = false;
+      sabBtn.style.opacity = '1';
+    } else {
+      banner.style.background = 'rgba(0, 242, 254, 0.2)';
+      banner.style.color = 'var(--resistance-blue)';
+      banner.innerText = '🏢 You are LOYAL RESISTANCE! (You must submit Success).';
+      sabBtn.disabled = true;
+      sabBtn.style.opacity = '0.3';
+    }
+  };
+  
+  document.getElementById('btnKioskSuccess').onclick = async () => {
+    await submitKioskAction('SUCCESS');
+  };
+  document.getElementById('btnKioskSabotage').onclick = async () => {
+    await submitKioskAction('SABOTAGE');
+  };
+});
+
+async function submitKioskAction(act) {
+  window.soundFx.playClick();
+  await fetch('/api/mission-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_name: currentKioskPlayer, action: act })
+  });
+  document.getElementById('kioskModal').classList.remove('open');
+}

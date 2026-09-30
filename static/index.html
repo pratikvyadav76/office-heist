@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Resistance: Office Heist | Fun Friday</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <!-- Offline SVG QR Code Generator (minimal embed) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="top-nav">
+    <div class="logo-area">
+      <div class="logo-icon">💼⚡</div>
+      <div class="logo-text">
+        <h1>Office Heist</h1>
+        <div class="subtitle">The Resistance • Fun Friday Corporate Edition</div>
+      </div>
+    </div>
+    
+    <div class="nav-actions">
+      <button id="btnQr" class="btn-icon" title="Show Phone Join QR">
+        📱 <span class="nav-btn-text">Join on Mobile</span>
+      </button>
+      <button id="btnSound" class="btn-icon" title="Toggle Sound">
+        🔊 <span class="nav-btn-text">Sound ON</span>
+      </button>
+      <button id="btnFullscreen" class="btn-icon" title="Toggle Fullscreen">
+        ⛶ <span class="nav-btn-text">Fullscreen</span>
+      </button>
+      <button id="btnModToggle" class="btn-icon btn-mod-toggle" title="Moderator Control Room">
+        🛡️ Moderator Desk
+      </button>
+    </div>
+  </header>
+
+  <!-- Scoreboard & Mission Track -->
+  <section class="dashboard-track">
+    <!-- Resistance Score -->
+    <div class="score-card resistance">
+      <div class="score-icon">🏢</div>
+      <div class="score-info">
+        <div class="score-label">Resistance Score</div>
+        <div class="score-val"><span id="resScore">0</span> / 3</div>
+        <div style="font-size: 11px; color: var(--resistance-blue)">17 Loyal Operatives</div>
+      </div>
+    </div>
+
+    <!-- 5 Missions Tracker -->
+    <div class="missions-container">
+      <div class="missions-row" id="missionsRow">
+        <!-- Rendered dynamically: Missions 1 to 5 with sizes [5, 6, 6, 7, 7] -->
+      </div>
+      
+      <!-- Rejection Track -->
+      <div class="proposal-track">
+        <span>Team Proposal Attempts:</span>
+        <div class="attempts-dots" id="attemptsDots">
+          <div class="attempt-dot"></div>
+          <div class="attempt-dot"></div>
+          <div class="attempt-dot"></div>
+          <div class="attempt-dot"></div>
+          <div class="attempt-dot"></div>
+        </div>
+        <span id="attemptWarning" style="color: var(--saboteur-red); font-weight: bold; margin-left: 6px;"></span>
+      </div>
+    </div>
+
+    <!-- Saboteur Score -->
+    <div class="score-card saboteur">
+      <div class="score-info" style="text-align: right; width: 100%">
+        <div class="score-label">Saboteur Score</div>
+        <div class="score-val"><span id="sabScore">0</span> / 3</div>
+        <div style="font-size: 11px; color: var(--saboteur-red)">5 Secret Saboteurs</div>
+      </div>
+      <div class="score-icon">😈</div>
+    </div>
+  </section>
+
+  <!-- Main Stage / Dynamic Phases -->
+  <main class="main-stage">
+    
+    <!-- PHASE 1: SETUP -->
+    <div id="phaseSetup" class="phase-card" style="display: none;">
+      <div class="phase-header">
+        <div class="phase-title-group">
+          <h2>🎯 Game Setup & Secret Role Draw</h2>
+          <div class="phase-desc">22 Players + 3 Moderators. Exactly 5 Secret Saboteurs will be drawn.</div>
+        </div>
+        <button id="btnStartGame" class="btn-primary" style="font-size: 16px;">
+          🚀 Draw Secret Roles & Start Game
+        </button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="font-size: 16px;">Player Roster (<span id="setupPlayerCount">22</span> players)</h3>
+            <button id="btnResetRoster" class="btn-icon" style="font-size: 11px;">Reset to Default 22</button>
+          </div>
+          <div class="roster-grid" id="setupRosterGrid"></div>
+          <div style="margin-top: 12px; display: flex; gap: 10px;">
+            <input type="text" id="newPlayerName" placeholder="Add custom player name..." style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle); color: #fff; padding: 10px; border-radius: 8px; flex: 1;">
+            <button id="btnAddPlayer" class="btn-icon">+ Add Player</button>
+          </div>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); padding: 16px; border-radius: 12px; border: 1px solid var(--border-subtle);">
+          <h3 style="font-size: 16px; margin-bottom: 8px; color: var(--gold-accent);">📋 3 Moderator Roles</h3>
+          <ul style="font-size: 13px; color: var(--text-muted); line-height: 1.6; list-style: none;">
+            <li style="margin-bottom: 8px;"><strong>1. Game Host:</strong> Facilitates debates, rotates the Team Leader, and announces team votes.</li>
+            <li style="margin-bottom: 8px;"><strong>2. Secret Whisperer:</strong> Privately sends WhatsApp/Teams messages to the 5 Saboteurs.</li>
+            <li style="margin-bottom: 8px;"><strong>3. Timekeeper:</strong> Operates debate timers and collects secret mission reports (S or F).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 2: LEADER PROPOSAL -->
+    <div id="phaseProposal" class="phase-card" style="display: none;">
+      <div class="leader-banner">
+        <div class="leader-info">
+          <div class="leader-avatar">👑</div>
+          <div>
+            <div class="leader-tag">Current Rotating Team Leader</div>
+            <div class="leader-name" id="leaderNameDisplay">Loading...</div>
+          </div>
+        </div>
+        <div>
+          <button id="btnRotateLeader" class="btn-icon" style="background: rgba(245, 158, 11, 0.2); border-color: var(--gold-accent);">
+            🔄 Pass Leader to Next Player
+          </button>
+        </div>
+      </div>
+
+      <div class="phase-header">
+        <div class="phase-title-group">
+          <h2>Select Operatives for Mission <span id="currentMissionNum">1</span></h2>
+          <div class="phase-desc">
+            Leader must choose exactly <strong id="requiredTeamSize" style="color: var(--gold-accent);">5</strong> operatives from the room to send on this heist.
+          </div>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <span id="selectionCounter" style="font-size: 14px; font-weight: 700; color: var(--resistance-blue);">0 / 5 Selected</span>
+          <button id="btnConfirmProposal" class="btn-primary" disabled>
+            Confirm Proposed Team
+          </button>
+        </div>
+      </div>
+
+      <div class="roster-grid" id="proposalRosterGrid"></div>
+    </div>
+
+    <!-- PHASE 3: DEBATE AND VOTE -->
+    <div id="phaseDebate" class="phase-card" style="display: none;">
+      <div class="phase-header">
+        <div class="phase-title-group">
+          <h2>🗣️ Team Proposal Debate & Room Vote</h2>
+          <div class="phase-desc">
+            Leader proposed the team below. Debate their trustworthiness! Then vote Yes/No.
+          </div>
+        </div>
+      </div>
+
+      <div class="debate-container">
+        <!-- Debate Timer -->
+        <div class="timer-box">
+          <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Debate Countdown</div>
+          <div class="timer-digits" id="timerDisplay">01:30</div>
+          <div class="timer-controls">
+            <button id="btnTimerStart" class="btn-icon">▶ Start</button>
+            <button id="btnTimerPause" class="btn-icon">⏸ Pause</button>
+            <button id="btnTimerReset" class="btn-icon">↺ Reset</button>
+          </div>
+        </div>
+
+        <!-- Proposed Operatives Spotlight -->
+        <div class="proposed-team-spotlight">
+          <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">
+            Proposed Heist Crew (<span id="spotlightCount">5</span> Operatives):
+          </div>
+          <div class="proposed-team-chips" id="proposedTeamChips"></div>
+        </div>
+      </div>
+
+      <!-- Voting Section -->
+      <div class="voting-block">
+        <h3 style="font-size: 16px; margin-bottom: 6px;">Cast Room Votes (Approve or Reject Team)</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+          Majority (> 50%) Yes approves the team. Enter show-of-hands tally or let players vote live on mobile!
+        </p>
+
+        <div class="tally-inputs">
+          <!-- YES Tally -->
+          <div class="tally-field" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div style="color: var(--success-green); font-weight: 800; font-size: 14px;">APPROVE (YES)</div>
+            <div class="tally-btn-group">
+              <button class="btn-counter" id="btnDecYes">-</button>
+              <div class="tally-number" id="tallyYes" style="color: var(--success-green);">12</div>
+              <button class="btn-counter" id="btnIncYes">+</button>
+            </div>
+          </div>
+
+          <!-- NO Tally -->
+          <div class="tally-field" style="border-color: rgba(255, 51, 102, 0.4);">
+            <div style="color: var(--saboteur-red); font-weight: 800; font-size: 14px;">REJECT (NO)</div>
+            <div class="tally-btn-group">
+              <button class="btn-counter" id="btnDecNo">-</button>
+              <div class="tally-number" id="tallyNo" style="color: var(--saboteur-red);">10</div>
+              <button class="btn-counter" id="btnIncNo">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            Live phone votes recorded: <strong id="liveVotesCount" style="color: #fff;">0</strong> / 22
+          </div>
+          <button id="btnResolveProposalVote" class="btn-primary" style="font-size: 16px;">
+            ⚖️ Finalize Vote & Announce Result
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 4: PROPOSAL RESULT -->
+    <div id="phaseProposalResult" class="phase-card" style="display: none; text-align: center;">
+      <div id="proposalResultBanner" style="padding: 30px; border-radius: 16px; margin-bottom: 20px;">
+        <div id="proposalResultIcon" style="font-size: 54px; margin-bottom: 12px;">✅</div>
+        <h2 id="proposalResultTitle" style="font-size: 32px; font-weight: 900; margin-bottom: 8px;">TEAM APPROVED!</h2>
+        <p id="proposalResultDetails" style="font-size: 16px; color: var(--text-muted);">14 Approved vs 8 Rejected</p>
+      </div>
+      <button id="btnProceedToMission" class="btn-primary" style="font-size: 16px; padding: 14px 32px;">
+        Proceed to Secret Heist Execution ➔
+      </button>
+    </div>
+
+    <!-- PHASE 5: MISSION ACTION -->
+    <div id="phaseMissionAction" class="phase-card" style="display: none;">
+      <div class="phase-header">
+        <div class="phase-title-group">
+          <h2>🔒 Secret Mission Action: Mission <span id="missionActionNum">1</span></h2>
+          <div class="phase-desc">
+            The <strong id="missionActionCount">5</strong> chosen operatives must secretly submit their action.
+            <br>Loyal Resistance MUST choose <strong>Success</strong>. Saboteurs can choose <strong>Success</strong> or <strong>Sabotage</strong>.
+          </div>
+        </div>
+        <div style="font-size: 18px; font-weight: 800; color: var(--gold-accent);">
+          Reports Received: <span id="submissionCounter">0</span> / <span id="submissionTotal">5</span>
+        </div>
+      </div>
+
+      <!-- Action submission methods -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
+        <!-- Option 1: Moderator Tally (from WhatsApp S/F messages) -->
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 20px;">
+          <h3 style="font-size: 16px; color: var(--resistance-blue); margin-bottom: 6px;">📱 Moderator WhatsApp / Teams Entry</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+            One moderator collects private messages (S or F) from the chosen team and enters the secret counts:
+          </p>
+
+          <div style="display: flex; gap: 14px; margin-bottom: 14px;">
+            <div style="flex: 1; text-align: center; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success-green); padding: 10px; border-radius: 10px;">
+              <div style="font-size: 12px; font-weight: 700; color: var(--success-green);">SUCCESS (S)</div>
+              <div style="font-size: 24px; font-weight: 900; margin: 4px 0;" id="manualSuccessCount">0</div>
+              <div style="display: flex; justify-content: center; gap: 6px;">
+                <button class="btn-counter" id="btnDecManualSuccess">-</button>
+                <button class="btn-counter" id="btnIncManualSuccess">+</button>
+              </div>
+            </div>
+
+            <div style="flex: 1; text-align: center; background: rgba(255, 51, 102, 0.1); border: 1px solid var(--saboteur-red); padding: 10px; border-radius: 10px;">
+              <div style="font-size: 12px; font-weight: 700; color: var(--saboteur-red);">SABOTAGE (F)</div>
+              <div style="font-size: 24px; font-weight: 900; margin: 4px 0;" id="manualSabotageCount">0</div>
+              <div style="display: flex; justify-content: center; gap: 6px;">
+                <button class="btn-counter" id="btnDecManualSabotage">-</button>
+                <button class="btn-counter" id="btnIncManualSabotage">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Option 2: Pass-the-Screen Kiosk Mode -->
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 20px;">
+          <h3 style="font-size: 16px; color: var(--gold-accent); margin-bottom: 6px;">💻 Pass-the-Screen Kiosk</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+            Players on the team can step up to this screen, select their name, and privately cast their action behind a shield:
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;" id="kioskOperativesList"></div>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 24px;">
+        <button id="btnResolveMission" class="btn-primary" style="font-size: 18px; padding: 16px 36px;">
+          ⚡ Shuffler & Reveal Mission Outcome
+        </button>
+      </div>
+    </div>
+
+    <!-- PHASE 6: GAME OVER -->
+    <div id="phaseGameOver" class="phase-card" style="display: none; text-align: center; padding: 50px;">
+      <div id="gameOverIcon" style="font-size: 80px; margin-bottom: 16px;">🏆</div>
+      <h1 id="gameOverTitle" style="font-size: 42px; font-weight: 900; margin-bottom: 12px;">RESISTANCE VICTORY!</h1>
+      <p id="gameOverDesc" style="font-size: 18px; color: var(--text-muted); max-width: 600px; margin: 0 auto 30px auto;">
+        The loyal office team completed 3 missions and cracked the vault!
+      </p>
+
+      <!-- Saboteur Reveal Box -->
+      <div style="background: rgba(255, 51, 102, 0.1); border: 1px solid var(--saboteur-red); border-radius: 16px; padding: 24px; max-width: 700px; margin: 0 auto 30px auto;">
+        <h3 style="font-size: 18px; color: var(--saboteur-red); margin-bottom: 12px;">😈 The 5 Secret Saboteurs Were:</h3>
+        <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;" id="gameOverSaboteursList"></div>
+      </div>
+
+      <button id="btnRestartGame" class="btn-primary" style="font-size: 16px; padding: 12px 30px;">
+        🔄 Play Another Game
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Dramatic Mission Reveal Overlay Modal -->
+  <div id="revealModal" class="reveal-modal">
+    <div id="revealCard" class="reveal-card">
+      <div class="vault-animation-area" id="revealAnimIcon">🔐</div>
+      <div class="reveal-title" id="revealTitle">DECRYPTING MISSION REPORTS...</div>
+      <div class="reveal-subtitle" id="revealSubtitle">Shuffling secret submissions into the vault...</div>
+      <div id="revealButtonContainer" style="margin-top: 24px; display: none;">
+        <button id="btnNextMission" class="btn-primary" style="font-size: 16px; padding: 12px 28px;">
+          Continue to Next Round ➔
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Moderator PIN Modal -->
+  <div id="modPinModal" class="qr-modal">
+    <div class="qr-box" style="max-width: 360px;">
+      <div style="font-size: 40px; margin-bottom: 8px;">🔐</div>
+      <h3 style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">Moderator Authentication</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+        Enter Host Moderator PIN to access the secret Saboteur desk.
+      </p>
+      <input type="password" id="inputModPin" placeholder="Enter 4-digit PIN (default: 2026)" style="width: 100%; padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.5); border: 1px solid var(--border-subtle); color: #fff; text-align: center; font-size: 18px; letter-spacing: 4px; margin-bottom: 12px;">
+      <div id="pinErrorMsg" style="color: var(--saboteur-red); font-size: 12px; margin-bottom: 10px; display: none;">Incorrect PIN</div>
+      <div style="display: flex; gap: 8px;">
+        <button id="btnCancelPin" class="btn-icon" style="flex: 1; justify-content: center;">Cancel</button>
+        <button id="btnSubmitPin" class="btn-primary" style="flex: 1; justify-content: center; padding: 10px;">Unlock</button>
+      </div>
+    </div>
+  </div>
+    <div class="mod-drawer-header">
+      <h3 style="font-size: 18px; font-weight: 800;">🛡️ Moderator Control Room</h3>
+      <button id="btnCloseMod" class="btn-icon" style="padding: 4px 10px;">✕</button>
+    </div>
+    <div class="mod-drawer-content">
+      <!-- Saboteur Roles & Whisper Templates -->
+      <div>
+        <h4 style="font-size: 14px; text-transform: uppercase; color: var(--saboteur-red); margin-bottom: 8px;">
+          😈 The 5 Secret Saboteurs
+        </h4>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Click "Copy Whisper" below to privately WhatsApp / Teams message each Saboteur.
+        </p>
+        <div id="modWhispersList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+      </div>
+
+      <!-- Quick Overrides -->
+      <div style="background: rgba(0,0,0,0.3); padding: 14px; border-radius: 10px; border: 1px solid var(--border-subtle);">
+        <h4 style="font-size: 13px; text-transform: uppercase; margin-bottom: 10px; color: var(--gold-accent);">
+          ⚙️ Moderator Overrides
+        </h4>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button id="btnModForceLeader" class="btn-icon">Rotate Leader to Next Player</button>
+          <button id="btnModResetGame" class="btn-icon" style="color: var(--saboteur-red); border-color: rgba(255, 51, 102, 0.4);">
+            Reset Entire Game
+          </button>
+        </div>
+      </div>
+
+      <!-- Game Event Log -->
+      <div>
+        <h4 style="font-size: 13px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">
+          📜 Office Heist History Log
+        </h4>
+        <div id="modEventLog" style="font-size: 11px; color: var(--text-muted); line-height: 1.5; max-height: 250px; overflow-y: auto; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Join Modal -->
+  <div id="qrModal" class="qr-modal">
+    <div class="qr-box">
+      <h3 style="font-size: 20px; font-weight: 800; margin-bottom: 6px;">📱 Player Mobile Submission</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+        Scan with your phone camera to submit your secret vote!
+      </p>
+      
+      <!-- Toggle between Google Form and Local Pad -->
+      <div style="display: flex; gap: 8px; margin-bottom: 12px; justify-content: center;">
+        <button id="btnTabGoogleForm" class="btn-icon" style="background: rgba(0, 242, 254, 0.2); border-color: var(--resistance-blue); font-size: 11px;">
+          📋 Google / MS Form
+        </button>
+        <button id="btnTabLocalPad" class="btn-icon" style="font-size: 11px;">
+          💻 Local Pad
+        </button>
+      </div>
+
+      <div id="googleFormConfig" style="margin-bottom: 12px;">
+        <input type="text" id="inputGoogleFormUrl" placeholder="Paste your Google / MS Form link here..." style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); color: #fff; font-size: 12px; margin-bottom: 6px;">
+        <button id="btnUpdateGoogleForm" class="btn-icon" style="width: 100%; justify-content: center; font-size: 11px;">
+          ✓ Update QR Code with Form Link
+        </button>
+      </div>
+
+      <div id="qrCodeTarget" style="display: inline-block; padding: 10px; background: #fff; border-radius: 12px; margin-bottom: 14px;"></div>
+      <div style="font-family: monospace; font-size: 12px; color: var(--resistance-blue); margin-bottom: 16px; word-break: break-all;" id="qrUrlDisplay">
+        http://192.168.0.102:8088/play
+      </div>
+      <button id="btnCloseQr" class="btn-icon" style="width: 100%; justify-content: center;">Close</button>
+    </div>
+  </div>
+
+  <!-- Kiosk Private Vote Modal -->
+  <div id="kioskModal" class="qr-modal">
+    <div class="qr-box" style="max-width: 480px; width: 90%;">
+      <div id="kioskShield" style="text-align: center;">
+        <div style="font-size: 48px; margin-bottom: 8px;">🛡️</div>
+        <h3 style="font-size: 22px; font-weight: 800; margin-bottom: 4px;" id="kioskPlayerName">Operative</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
+          Ensure no one else is looking at your screen!
+        </p>
+        <button id="btnKioskReady" class="btn-primary" style="width: 100%;">
+          I'm Ready - Show My Action Options
+        </button>
+      </div>
+
+      <div id="kioskActionArea" style="display: none; text-align: center;">
+        <div style="font-size: 13px; margin-bottom: 16px; padding: 8px; border-radius: 8px;" id="kioskRoleBanner"></div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
+          Choose your secret action for this heist mission:
+        </p>
+        <div style="display: flex; gap: 14px; justify-content: center;">
+          <button id="btnKioskSuccess" class="btn-primary" style="flex: 1; padding: 16px; background: var(--success-green); color: #fff;">
+            ✅ SUCCESS
+          </button>
+          <button id="btnKioskSabotage" class="btn-danger" style="flex: 1; padding: 16px;">
+            💥 SABOTAGE
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/audio.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

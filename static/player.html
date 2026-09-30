@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Heist Agent Pad | The Resistance</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    body {
+      padding: 16px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .role-card-mobile {
+      background: var(--bg-card);
+      border: 2px dashed var(--border-glow);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      margin-bottom: 20px;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    .role-secret-content {
+      display: none;
+    }
+    .role-secret-content.revealed {
+      display: block;
+    }
+    .btn-vote-mobile {
+      flex: 1;
+      padding: 20px;
+      border-radius: 14px;
+      font-size: 18px;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-approve-mobile {
+      background: rgba(16, 185, 129, 0.2);
+      border: 2px solid var(--success-green);
+      color: #fff;
+    }
+    .btn-reject-mobile {
+      background: rgba(255, 51, 102, 0.2);
+      border: 2px solid var(--saboteur-red);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <div style="font-weight: 900; font-size: 18px; color: var(--resistance-blue);">💼 HEIST AGENT PAD</div>
+    <div id="connBadge" style="font-size: 11px; padding: 4px 8px; border-radius: 12px; background: rgba(16, 185, 129, 0.2); color: var(--success-green);">● LIVE</div>
+  </div>
+
+  <!-- Player Identification -->
+  <div id="selectPlayerCard" class="phase-card" style="margin-bottom: 16px;">
+    <h3 style="font-size: 15px; margin-bottom: 8px;">Select Your Name</h3>
+    <select id="playerSelect" style="width: 100%; padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.4); color: #fff; border: 1px solid var(--border-subtle); font-size: 15px; font-weight: 700; margin-bottom: 12px;">
+      <option value="">-- Choose your name --</option>
+    </select>
+    <button id="btnConfirmPlayer" class="btn-primary" style="width: 100%;">Enter Mission</button>
+  </div>
+
+  <!-- Main Active Player UI -->
+  <div id="activePlayerUI" style="display: none;">
+    <!-- Welcome Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <div>
+        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Active Agent</div>
+        <div style="font-size: 20px; font-weight: 800; color: #fff;" id="agentNameDisplay">Agent</div>
+      </div>
+      <button id="btnSwitchPlayer" class="btn-icon" style="font-size: 11px;">Switch</button>
+    </div>
+
+    <!-- Privacy Shield Role Card -->
+    <div class="role-card-mobile" id="roleCardMobile">
+      <div id="roleCover">
+        <div style="font-size: 40px; margin-bottom: 8px;">🛡️</div>
+        <h3 style="font-size: 16px; font-weight: 800; margin-bottom: 4px;">TOP SECRET ROLE</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Press & hold below to reveal your secret identity.
+        </p>
+        <button id="btnHoldReveal" class="btn-icon" style="width: 100%; justify-content: center; background: rgba(255,255,255,0.1); padding: 14px; font-weight: 700;">
+          👁️ HOLD TO REVEAL IDENTITY
+        </button>
+      </div>
+
+      <div id="roleSecretContent" class="role-secret-content">
+        <div id="roleSecretIcon" style="font-size: 48px; margin-bottom: 6px;">🏢</div>
+        <h2 id="roleSecretTitle" style="font-size: 24px; font-weight: 900; margin-bottom: 6px;">LOYAL RESISTANCE</h2>
+        <p id="roleSecretDesc" style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          You are a loyal member of the office team. Pass 3 missions to win!
+        </p>
+        <div id="fellowSaboteursBox" style="display: none; background: rgba(255, 51, 102, 0.15); border: 1px solid var(--saboteur-red); border-radius: 8px; padding: 10px; font-size: 12px;">
+          <strong>😈 Fellow Saboteurs:</strong>
+          <div id="fellowSaboteursList" style="margin-top: 4px; font-weight: 700;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dynamic Actions Based On Game Phase -->
+    
+    <!-- 1. Leader Proposal (if this player is leader) -->
+    <div id="mobileLeaderSection" class="phase-card" style="display: none; margin-bottom: 16px;">
+      <h3 style="font-size: 16px; color: var(--gold-accent); margin-bottom: 6px;">👑 You Are The Team Leader!</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+        Choose <strong id="mobileReqSize">5</strong> operatives for Mission <span id="mobileMissionNum">1</span>:
+      </p>
+      <div id="mobileRosterGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;"></div>
+      <button id="btnMobilePropose" class="btn-primary" style="width: 100%;" disabled>
+        Confirm Proposed Team
+      </button>
+    </div>
+
+    <!-- 2. Proposal Voting (Approve / Reject) -->
+    <div id="mobileVoteSection" class="phase-card" style="display: none; margin-bottom: 16px;">
+      <h3 style="font-size: 16px; margin-bottom: 6px;">🗳️ Vote on Proposed Team</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+        Do you approve sending this crew on the mission?
+      </p>
+      <div id="mobileProposedChips" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;"></div>
+
+      <div id="mobileVoteButtons" style="display: flex; gap: 12px;">
+        <button id="btnMobileApprove" class="btn-vote-mobile btn-approve-mobile">
+          <span>👍</span>
+          <span>APPROVE</span>
+        </button>
+        <button id="btnMobileReject" class="btn-vote-mobile btn-reject-mobile">
+          <span>👎</span>
+          <span>REJECT</span>
+        </button>
+      </div>
+      <div id="mobileVoteConfirmation" style="display: none; text-align: center; padding: 14px; background: rgba(0,0,0,0.3); border-radius: 10px; font-weight: 700; color: var(--resistance-blue);">
+        ✓ Vote Cast! Waiting for room...
+      </div>
+    </div>
+
+    <!-- 3. Mission Action (Success / Sabotage) -->
+    <div id="mobileActionSection" class="phase-card" style="display: none; margin-bottom: 16px;">
+      <h3 style="font-size: 16px; color: var(--gold-accent); margin-bottom: 6px;">🔒 You Are On This Mission!</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+        Submit your secret report. Loyal Resistance must submit Success. Saboteurs may choose Success or Sabotage.
+      </p>
+
+      <div id="mobileActionButtons" style="display: flex; gap: 12px;">
+        <button id="btnMobileSuccess" class="btn-primary" style="flex: 1; padding: 18px; background: var(--success-green); color: #fff;">
+          ✅ SUCCESS
+        </button>
+        <button id="btnMobileSabotage" class="btn-danger" style="flex: 1; padding: 18px;">
+          💥 SABOTAGE
+        </button>
+      </div>
+
+      <div id="mobileActionConfirmation" style="display: none; text-align: center; padding: 16px; background: rgba(0,0,0,0.3); border-radius: 10px; font-weight: 700; color: var(--success-green);">
+        ✓ Mission Report Encrypted & Submitted!
+      </div>
+    </div>
+
+    <!-- 4. Spectator / Waiting card -->
+    <div id="mobileWaitingCard" class="phase-card" style="text-align: center; padding: 20px;">
+      <div style="font-size: 28px; margin-bottom: 6px;">📡</div>
+      <div style="font-size: 14px; font-weight: 700; color: var(--text-muted);" id="mobileWaitingText">
+        Watching Big Screen...
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/static/player.js"></script>
+</body>
+</html>
