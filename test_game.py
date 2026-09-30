@@ -175,5 +175,31 @@ class TestOfficeHeistGame(unittest.TestCase):
         self.assertEqual(state["mission_team_sizes"], [4, 5, 5, 6, 6])
         self.assertEqual(state["required_team_size"], 4)
 
+    def test_excluded_saboteurs_protection(self):
+        excluded_names = [
+            "bhishma", "puja", "niki", "pratik buge", "saket", 
+            "sonakshi", "tanmay", "pratik morale", "smeet"
+        ]
+        
+        # Run 50 random assignments to statistically guarantee exclusion
+        for _ in range(50):
+            self.client.post("/api/setup", json={"players": DEFAULT_PLAYERS, "pin": MODERATOR_PIN})
+            mod_state = self.client.get(f"/api/state?role=moderator&pin={MODERATOR_PIN}").json()
+            saboteurs = mod_state["saboteurs"]
+            
+            # Ensure exactly 5 saboteurs are selected
+            self.assertEqual(len(saboteurs), 5)
+            
+            # Check that NONE of the excluded names are in saboteurs
+            for s in saboteurs:
+                s_lower = s.lower()
+                for exc in excluded_names:
+                    self.assertNotIn(exc, s_lower, f"Violated rule: {s} matched excluded name '{exc}'!")
+                    
+            # Ensure all excluded names are in resistance members
+            resistance = " ".join(mod_state["resistance_members"]).lower()
+            for exc in excluded_names:
+                self.assertIn(exc, resistance, f"Excluded player '{exc}' was missing from Resistance!")
+
 if __name__ == "__main__":
     unittest.main()

@@ -126,6 +126,25 @@ def calculate_default_team_sizes(player_count: int) -> List[int]:
 
 MISSION_TEAM_SIZES = [5, 6, 6, 7, 7]  # Backward compatibility fallback
 
+# Reverse list: Colleagues who must NEVER be assigned as Saboteurs (always Loyal Resistance)
+EXCLUDED_FROM_SABOTEURS = [
+    "bhishma",
+    "puja",
+    "niki",
+    "pratik buge",
+    "pratik.buge",
+    "saket",
+    "sonakshi",
+    "tanmay",
+    "pratik morale",
+    "pratik.morale",
+    "smeet"
+]
+
+def is_excluded_from_saboteurs(player_str: str) -> bool:
+    low = player_str.lower()
+    return any(exc in low for exc in EXCLUDED_FROM_SABOTEURS)
+
 def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -203,7 +222,16 @@ class GameState:
         else:
             if len(self.players) < self.saboteur_count:
                 raise ValueError("Not enough players for saboteur count")
-            self.saboteurs = random.sample(self.players, self.saboteur_count)
+            
+            # Filter pool: exclude protected colleagues who must never be Saboteurs
+            eligible_pool = [p for p in self.players if not is_excluded_from_saboteurs(p)]
+            if len(eligible_pool) >= self.saboteur_count:
+                self.saboteurs = random.sample(eligible_pool, self.saboteur_count)
+            else:
+                remaining_needed = self.saboteur_count - len(eligible_pool)
+                fallback = [p for p in self.players if p not in eligible_pool]
+                self.saboteurs = list(eligible_pool) + random.sample(fallback, remaining_needed)
+
         self.phase = "LEADER_PROPOSAL"
         self.log_event("GAME_STARTED", f"Game started with {len(self.players)} players. {self.saboteur_count} Saboteurs assigned in secret.")
         self.save()
