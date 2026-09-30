@@ -29,6 +29,55 @@
   "saboteur_count": 5,
   "saboteurs": [],
   "current_mission_index": 0,
+  "missions": [
+    {
+      "index": 1,
+      "title": "Operation Blackout",
+      "story": "Hack Telecoms & Jam Police Radars",
+      "description": "Rio taps into the microwave relay and redirects emergency dispatch lines.",
+      "team_size": 5,
+      "fails_required": 1
+    },
+    {
+      "index": 2,
+      "title": "Subterranean Minting",
+      "story": "Start Presses & Print \u20ac2.4B Untraceable Cash",
+      "description": "Nairobi commands the presses churning out crisp uncirculated 50-euro bills.",
+      "team_size": 6,
+      "fails_required": 1
+    },
+    {
+      "index": 3,
+      "title": "The Governor's Vault",
+      "story": "Breach Underwater Chamber of Secrets",
+      "description": "Berlin & Bogot\u00e1 dive the flooded vault to extract the state's secret red dossiers.",
+      "team_size": 6,
+      "fails_required": 1
+    },
+    {
+      "index": 4,
+      "title": "Melt 90 Tons of Gold",
+      "story": "Melt Reserves into Micro-Pellets",
+      "description": "Helsinki and Palermo melt gold bars into micro-grains for hydraulic extraction.",
+      "team_size": 7,
+      "fails_required": 1
+    },
+    {
+      "index": 5,
+      "title": "Plan Chernobyl (Rooftop Extraction)",
+      "story": "Deploy Red Smoke Canisters & Helo Extraction",
+      "description": "The Professor triggers military decoys and rooftop flares for the final clean getaway.",
+      "team_size": 7,
+      "fails_required": 1
+    }
+  ],
+  "mission_team_sizes": [
+    5,
+    6,
+    6,
+    7,
+    7
+  ],
   "mission_results": [
     null,
     null,

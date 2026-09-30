@@ -124,5 +124,56 @@ class TestOfficeHeistGame(unittest.TestCase):
         self.assertEqual(t_reset.status_code, 200)
         self.assertEqual(t_reset.json()["timer_seconds"], 90)
 
+    def test_absentee_player_removal_and_dynamic_scaling(self):
+        # Suppose 4 players are absent, so only 21 players
+        reduced_players = DEFAULT_PLAYERS[:18]
+        setup_res = self.client.post("/api/setup", json={"players": reduced_players, "pin": MODERATOR_PIN})
+        self.assertEqual(setup_res.status_code, 200)
+        
+        state = self.client.get("/api/state").json()
+        self.assertEqual(state["player_count"], 18)
+        self.assertEqual(state["saboteur_count"], 5)
+        self.assertEqual(len(state["missions"]), 5)
+
+    def test_pure_mobile_proposal_voting_resolution(self):
+        self.client.post("/api/setup", json={"players": DEFAULT_PLAYERS, "pin": MODERATOR_PIN})
+        self.client.post("/api/propose-team", json={"team": DEFAULT_PLAYERS[:5]})
+        
+        # 12 players vote YES on mobile, 4 vote NO
+        for p in DEFAULT_PLAYERS[:12]:
+            self.client.post("/api/proposal-vote", json={"player_name": p, "vote": "YES"})
+        for p in DEFAULT_PLAYERS[12:16]:
+            self.client.post("/api/proposal-vote", json={"player_name": p, "vote": "NO"})
+            
+        state = self.client.get("/api/state").json()
+        self.assertEqual(state["proposal_votes_count"], 16)
+        self.assertIn(DEFAULT_PLAYERS[0], state["proposal_voted_players"])
+        
+        # Resolve without manual override
+        res = self.client.post("/api/resolve-proposal-vote")
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.json()["approved"])
+        self.assertEqual(res.json()["yes_votes"], 12)
+        self.assertEqual(res.json()["no_votes"], 4)
+
+    def test_custom_missions_configuration(self):
+        self.client.post("/api/setup", json={"players": DEFAULT_PLAYERS, "pin": MODERATOR_PIN})
+        
+        custom_missions = [
+            {"index": 1, "title": "Custom M1", "story": "Story 1", "team_size": 4, "fails_required": 1},
+            {"index": 2, "title": "Custom M2", "story": "Story 2", "team_size": 5, "fails_required": 1},
+            {"index": 3, "title": "Custom M3", "story": "Story 3", "team_size": 5, "fails_required": 1},
+            {"index": 4, "title": "Custom M4", "story": "Story 4", "team_size": 6, "fails_required": 2},
+            {"index": 5, "title": "Custom M5", "story": "Story 5", "team_size": 6, "fails_required": 1},
+        ]
+        
+        c_res = self.client.post("/api/customize-missions", json={"missions": custom_missions, "pin": MODERATOR_PIN})
+        self.assertEqual(c_res.status_code, 200)
+        
+        state = self.client.get("/api/state").json()
+        self.assertEqual(state["missions"][0]["title"], "Custom M1")
+        self.assertEqual(state["mission_team_sizes"], [4, 5, 5, 6, 6])
+        self.assertEqual(state["required_team_size"], 4)
+
 if __name__ == "__main__":
     unittest.main()

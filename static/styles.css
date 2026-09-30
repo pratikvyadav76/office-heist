@@ -430,6 +430,92 @@ body {
   color: var(--text-muted);
 }
 
+.chip-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 51, 102, 0.2);
+  border: 1px solid rgba(255, 51, 102, 0.4);
+  color: var(--saboteur-red);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+  z-index: 2;
+  line-height: 1;
+}
+
+.chip-remove-btn:hover {
+  background: var(--saboteur-red);
+  color: #fff;
+  transform: scale(1.15);
+}
+
+.setup-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 14px 0;
+  align-items: center;
+}
+
+.setup-summary-item {
+  flex: 1;
+  min-width: 130px;
+}
+
+.setup-summary-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.setup-summary-val {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.absent-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.absent-chip-restore {
+  background: rgba(0, 242, 254, 0.15);
+  border: 1px solid var(--resistance-blue);
+  color: var(--resistance-blue);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.absent-chip-restore:hover {
+  background: var(--resistance-blue);
+  color: #000;
+}
+
 /* Debate & Timer */
 .debate-container {
   display: flex;
@@ -648,19 +734,36 @@ body {
   margin-bottom: 30px;
 }
 
+/* Moderator Drawer Backdrop */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  z-index: 1100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawer-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Moderator Drawer */
 .mod-drawer {
   position: fixed;
   top: 0;
-  right: -520px;
+  right: -540px;
   width: 500px;
+  max-width: 95vw;
   height: 100vh;
-  background: rgba(10, 15, 29, 0.98);
-  backdrop-filter: blur(20px);
-  border-left: 1px solid var(--border-subtle);
-  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.6);
-  z-index: 500;
-  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #0d121f;
+  border-left: 2px solid var(--heist-gold);
+  box-shadow: -10px 0 50px rgba(0, 0, 0, 0.85);
+  z-index: 1200;
+  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
 }
@@ -670,11 +773,12 @@ body {
 }
 
 .mod-drawer-header {
-  padding: 20px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .mod-drawer-content {
@@ -686,28 +790,84 @@ body {
   gap: 20px;
 }
 
-.whisper-card {
+.mod-role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+/* Mobile Voting Tracker in Debate Phase */
+.ballot-progress-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  height: 12px;
+  width: 100%;
+  overflow: hidden;
+  margin: 10px 0 16px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ballot-progress-bar {
+  background: linear-gradient(90deg, var(--resistance-blue) 0%, var(--heist-gold) 100%);
+  height: 100%;
+  width: 0%;
+  transition: width 0.4s ease;
+  border-radius: 8px;
+}
+
+.live-vote-pill {
+  background: rgba(0, 242, 254, 0.1);
+  border: 1px solid var(--resistance-blue);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ballot-voters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+}
+
+.voter-chip {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.25s ease;
+}
+
+.voter-chip.voted {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid var(--success-green);
+  color: #fff;
+}
+
+.voter-chip.waiting {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.mission-editor-row {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 12px;
-}
-
-.whisper-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.whisper-text {
-  font-size: 11px;
-  color: var(--text-muted);
-  background: rgba(0, 0, 0, 0.4);
-  padding: 8px;
-  border-radius: 6px;
-  white-space: pre-wrap;
-  font-family: monospace;
 }
 
 /* QR Code Modal */

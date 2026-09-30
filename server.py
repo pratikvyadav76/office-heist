@@ -55,7 +55,76 @@ RAW_PLAYER_DATA = [
 
 DEFAULT_PLAYERS = [f"{name} ({uname})" for name, uname in RAW_PLAYER_DATA]
 
-MISSION_TEAM_SIZES = [5, 6, 6, 7, 7]  # Missions 1 to 5
+DEFAULT_MISSIONS = [
+    {
+        "index": 1,
+        "title": "Operation Blackout",
+        "story": "Hack Telecoms & Jam Police Radars",
+        "description": "Rio taps into the microwave relay and redirects emergency dispatch lines.",
+        "team_size": 5,
+        "fails_required": 1
+    },
+    {
+        "index": 2,
+        "title": "Subterranean Minting",
+        "story": "Start Presses & Print €2.4B Untraceable Cash",
+        "description": "Nairobi commands the presses churning out crisp uncirculated 50-euro bills.",
+        "team_size": 6,
+        "fails_required": 1
+    },
+    {
+        "index": 3,
+        "title": "The Governor's Vault",
+        "story": "Breach Underwater Chamber of Secrets",
+        "description": "Berlin & Bogotá dive the flooded vault to extract the state's secret red dossiers.",
+        "team_size": 6,
+        "fails_required": 1
+    },
+    {
+        "index": 4,
+        "title": "Melt 90 Tons of Gold",
+        "story": "Melt Reserves into Micro-Pellets",
+        "description": "Helsinki and Palermo melt gold bars into micro-grains for hydraulic extraction.",
+        "team_size": 7,
+        "fails_required": 1
+    },
+    {
+        "index": 5,
+        "title": "Plan Chernobyl (Rooftop Extraction)",
+        "story": "Deploy Red Smoke Canisters & Helo Extraction",
+        "description": "The Professor triggers military decoys and rooftop flares for the final clean getaway.",
+        "team_size": 7,
+        "fails_required": 1
+    }
+]
+
+def calculate_default_saboteurs(player_count: int) -> int:
+    if player_count <= 6:
+        return 2
+    elif player_count <= 9:
+        return 3
+    elif player_count <= 14:
+        return 4
+    elif player_count <= 28:
+        return 5
+    else:
+        return 6
+
+def calculate_default_team_sizes(player_count: int) -> List[int]:
+    if player_count == 5:
+        return [2, 3, 2, 3, 3]
+    elif player_count == 6:
+        return [2, 3, 4, 3, 4]
+    elif player_count == 7:
+        return [2, 3, 3, 4, 4]
+    elif player_count in (8, 9, 10):
+        return [3, 4, 4, 5, 5]
+    elif player_count <= 14:
+        return [4, 5, 5, 6, 6]
+    else:
+        return [5, 6, 6, 7, 7]
+
+MISSION_TEAM_SIZES = [5, 6, 6, 7, 7]  # Backward compatibility fallback
 
 def get_local_ip():
     try:
@@ -97,7 +166,7 @@ class GameState:
 
     def reset_defaults(self):
         self.players: List[str] = list(DEFAULT_PLAYERS)
-        self.saboteur_count: int = 5
+        self.saboteur_count: int = calculate_default_saboteurs(len(self.players))
         self.saboteurs: List[str] = []
         self.current_mission_index: int = 0
         self.mission_results: List[Optional[str]] = [None, None, None, None, None]
@@ -106,6 +175,14 @@ class GameState:
         self.saboteur_score: int = 0
         self.game_over: bool = False
         self.winner: Optional[str] = None
+        
+        # Missions with Money Heist lore
+        self.missions = [dict(m) for m in DEFAULT_MISSIONS]
+        default_sizes = calculate_default_team_sizes(len(self.players))
+        for idx, sz in enumerate(default_sizes):
+            if idx < len(self.missions):
+                self.missions[idx]["team_size"] = sz
+        self.mission_team_sizes = [m["team_size"] for m in self.missions]
         
         self.phase: str = "SETUP"
         self.leader_index: int = 0
@@ -128,7 +205,7 @@ class GameState:
                 raise ValueError("Not enough players for saboteur count")
             self.saboteurs = random.sample(self.players, self.saboteur_count)
         self.phase = "LEADER_PROPOSAL"
-        self.log_event("GAME_STARTED", f"Game started with {len(self.players)} players. 5 Saboteurs assigned in secret.")
+        self.log_event("GAME_STARTED", f"Game started with {len(self.players)} players. {self.saboteur_count} Saboteurs assigned in secret.")
         self.save()
 
     def spin_random_leader(self) -> str:
@@ -142,7 +219,10 @@ class GameState:
         return new_leader
 
     def get_public_state(self) -> dict:
-        required_team_size = MISSION_TEAM_SIZES[self.current_mission_index] if self.current_mission_index < 5 else 0
+        cur_mission = self.missions[self.current_mission_index] if self.current_mission_index < len(self.missions) else None
+        required_team_size = cur_mission["team_size"] if cur_mission else 0
+        fails_required = cur_mission.get("fails_required", 1) if cur_mission else 1
+
         rem_sec = self.timer_seconds
         if self.timer_running and self.timer_end_timestamp > 0:
             rem_sec = max(0, int(self.timer_end_timestamp - time.time()))
@@ -157,8 +237,11 @@ class GameState:
             "saboteur_count": self.saboteur_count,
             "resistance_count": len(self.players) - self.saboteur_count,
             "current_mission": self.current_mission_index + 1,
-            "mission_team_sizes": MISSION_TEAM_SIZES,
+            "missions": self.missions,
+            "current_mission_info": cur_mission,
+            "mission_team_sizes": [m["team_size"] for m in self.missions],
             "required_team_size": required_team_size,
+            "fails_required": fails_required,
             "mission_results": self.mission_results,
             "resistance_score": self.resistance_score,
             "saboteur_score": self.saboteur_score,
@@ -170,8 +253,10 @@ class GameState:
             "proposal_attempt": self.proposal_attempt,
             "max_proposal_attempts": self.max_proposal_attempts,
             "proposal_votes_count": len(self.proposal_votes),
+            "proposal_voted_players": list(self.proposal_votes.keys()),
             "proposal_votes_cast": self.proposal_votes if self.phase in ["PROPOSAL_RESULT", "MISSION_ACTION", "MISSION_RESULT", "GAME_OVER"] else {},
             "mission_submissions_count": len(self.mission_submissions),
+            "mission_submitted_players": list(self.mission_submissions.keys()),
             "timer_seconds": rem_sec,
             "timer_running": self.timer_running,
             "timer_end_timestamp": self.timer_end_timestamp if self.timer_running else 0,
@@ -229,6 +314,8 @@ class GameState:
                 "saboteur_count": self.saboteur_count,
                 "saboteurs": self.saboteurs,
                 "current_mission_index": self.current_mission_index,
+                "missions": self.missions,
+                "mission_team_sizes": [m["team_size"] for m in self.missions],
                 "mission_results": self.mission_results,
                 "mission_secret_sabotages": self.mission_secret_sabotages,
                 "resistance_score": self.resistance_score,
@@ -254,9 +341,21 @@ class GameState:
                 with open(STATE_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     self.players = data.get("players", list(DEFAULT_PLAYERS))
-                    self.saboteur_count = data.get("saboteur_count", 5)
+                    self.saboteur_count = data.get("saboteur_count", calculate_default_saboteurs(len(self.players)))
                     self.saboteurs = data.get("saboteurs", [])
                     self.current_mission_index = data.get("current_mission_index", 0)
+                    
+                    saved_missions = data.get("missions")
+                    if saved_missions and len(saved_missions) == 5:
+                        self.missions = saved_missions
+                    else:
+                        self.missions = [dict(m) for m in DEFAULT_MISSIONS]
+                        def_sizes = calculate_default_team_sizes(len(self.players))
+                        for i, sz in enumerate(def_sizes):
+                            if i < len(self.missions):
+                                self.missions[i]["team_size"] = sz
+                    self.mission_team_sizes = [m["team_size"] for m in self.missions]
+
                     self.mission_results = data.get("mission_results", [None]*5)
                     self.mission_secret_sabotages = data.get("mission_secret_sabotages", [0]*5)
                     self.resistance_score = data.get("resistance_score", 0)
@@ -279,7 +378,9 @@ game.load()
 # Models
 class SetupRequest(BaseModel):
     players: List[str]
+    saboteur_count: Optional[int] = None
     saboteurs: Optional[List[str]] = None
+    mission_team_sizes: Optional[List[int]] = None
     pin: Optional[str] = None
 
 class ProposeTeamRequest(BaseModel):
@@ -290,16 +391,27 @@ class ProposalVoteRequest(BaseModel):
     vote: str
 
 class ManualProposalVoteRequest(BaseModel):
-    yes_count: int
-    no_count: int
+    yes_count: Optional[int] = None
+    no_count: Optional[int] = None
+
+class MissionConfigItem(BaseModel):
+    index: int
+    title: str
+    story: str
+    team_size: int
+    fails_required: int = 1
+
+class CustomizeMissionsRequest(BaseModel):
+    missions: List[MissionConfigItem]
+    pin: Optional[str] = None
 
 class MissionActionRequest(BaseModel):
     player_name: str
     action: str
 
 class ManualMissionTallyRequest(BaseModel):
-    success_count: int
-    sabotage_count: int
+    success_count: Optional[int] = None
+    sabotage_count: Optional[int] = None
 
 class TimerActionRequest(BaseModel):
     action: str
@@ -334,16 +446,51 @@ async def verify_pin(data: Dict[str, str]):
 async def setup_game(req: SetupRequest):
     if req.pin:
         verify_moderator_pin(req.pin)
-    game.players = [p.strip() for p in req.players if p.strip()]
-    if len(game.players) < 5:
+    cleaned = [p.strip() for p in req.players if p.strip()]
+    if len(cleaned) < 5:
         raise HTTPException(status_code=400, detail="At least 5 players required")
+    game.players = cleaned
+    
+    if req.saboteur_count and 1 <= req.saboteur_count < len(cleaned):
+        game.saboteur_count = req.saboteur_count
+    else:
+        game.saboteur_count = calculate_default_saboteurs(len(cleaned))
+        
+    if req.mission_team_sizes and len(req.mission_team_sizes) == 5:
+        for idx, sz in enumerate(req.mission_team_sizes):
+            if idx < len(game.missions):
+                game.missions[idx]["team_size"] = sz
+    else:
+        recommended = calculate_default_team_sizes(len(cleaned))
+        for idx, sz in enumerate(recommended):
+            if idx < len(game.missions):
+                game.missions[idx]["team_size"] = sz
+                
+    game.mission_team_sizes = [m["team_size"] for m in game.missions]
     game.assign_roles(req.saboteurs)
     await manager.broadcast({"type": "STATE_UPDATE", "state": game.get_public_state()})
     return {"status": "ok", "state": game.get_moderator_state()}
 
+@app.post("/api/customize-missions")
+async def customize_missions(req: CustomizeMissionsRequest):
+    if req.pin:
+        verify_moderator_pin(req.pin)
+    for m in req.missions:
+        if 1 <= m.index <= 5:
+            idx = m.index - 1
+            if idx < len(game.missions):
+                game.missions[idx]["title"] = m.title
+                game.missions[idx]["story"] = m.story
+                game.missions[idx]["team_size"] = m.team_size
+                game.missions[idx]["fails_required"] = m.fails_required
+    game.mission_team_sizes = [m["team_size"] for m in game.missions]
+    game.save()
+    await manager.broadcast({"type": "STATE_UPDATE", "state": game.get_public_state()})
+    return {"status": "ok", "missions": game.missions}
+
 @app.post("/api/propose-team")
 async def propose_team(req: ProposeTeamRequest):
-    req_size = MISSION_TEAM_SIZES[game.current_mission_index]
+    req_size = game.mission_team_sizes[game.current_mission_index] if game.current_mission_index < len(game.mission_team_sizes) else 5
     if len(req.team) != req_size:
         raise HTTPException(status_code=400, detail=f"Mission {game.current_mission_index+1} requires exactly {req_size} players")
     game.proposed_team = req.team
@@ -351,7 +498,7 @@ async def propose_team(req: ProposeTeamRequest):
     game.proposal_votes = {}
     game.timer_seconds = 90
     game.timer_running = False
-    leader_name = game.players[game.leader_index]
+    leader_name = game.players[game.leader_index] if game.players else "Leader"
     game.log_event("TEAM_PROPOSED", f"Leader {leader_name} proposed team: {', '.join(req.team)} (Attempt {game.proposal_attempt}/{game.max_proposal_attempts})")
     game.save()
     await manager.broadcast({"type": "STATE_UPDATE", "state": game.get_public_state()})
@@ -367,25 +514,26 @@ async def cast_proposal_vote(req: ProposalVoteRequest):
         "type": "VOTE_CAST", 
         "player": req.player_name, 
         "total_votes": len(game.proposal_votes),
-        "total_players": len(game.players)
+        "total_players": len(game.players),
+        "voted_players": list(game.proposal_votes.keys())
     })
     return {"status": "ok", "voted": len(game.proposal_votes)}
 
 @app.post("/api/resolve-proposal-vote")
 async def resolve_proposal_vote(manual: Optional[ManualProposalVoteRequest] = None):
-    if manual:
-        yes_votes = manual.yes_count
-        no_votes = manual.no_count
+    if manual and ((manual.yes_count is not None and manual.yes_count > 0) or (manual.no_count is not None and manual.no_count > 0)):
+        yes_votes = manual.yes_count or 0
+        no_votes = manual.no_count or 0
         total_votes = yes_votes + no_votes
     else:
         yes_votes = sum(1 for v in game.proposal_votes.values() if v == "YES")
         no_votes = sum(1 for v in game.proposal_votes.values() if v == "NO")
         total_votes = len(game.proposal_votes)
         
-    approved = yes_votes > (total_votes / 2.0)
+    approved = (yes_votes > (total_votes / 2.0)) if total_votes > 0 else False
     game.phase = "PROPOSAL_RESULT"
     
-    leader_name = game.players[game.leader_index]
+    leader_name = game.players[game.leader_index] if game.players else "Leader"
     team_str = ", ".join(game.proposed_team)
     
     if approved:
@@ -430,15 +578,16 @@ async def submit_mission_action(req: MissionActionRequest):
     await manager.broadcast({
         "type": "MISSION_ACTION_SUBMITTED",
         "submissions_count": len(game.mission_submissions),
-        "required_count": len(game.proposed_team)
+        "required_count": len(game.proposed_team),
+        "submitted_players": list(game.mission_submissions.keys())
     })
     return {"status": "ok", "submitted": len(game.mission_submissions), "total_needed": len(game.proposed_team)}
 
 @app.post("/api/resolve-mission")
 async def resolve_mission(manual: Optional[ManualMissionTallyRequest] = None):
-    if manual:
-        sabotage_count = manual.sabotage_count
-        success_count = manual.success_count
+    if manual and ((manual.success_count is not None and manual.success_count > 0) or (manual.sabotage_count is not None and manual.sabotage_count > 0)):
+        sabotage_count = manual.sabotage_count or 0
+        success_count = manual.success_count or 0
     else:
         sabotage_count = sum(1 for act in game.mission_submissions.values() if act == "SABOTAGE")
         success_count = sum(1 for act in game.mission_submissions.values() if act == "SUCCESS")
@@ -446,7 +595,11 @@ async def resolve_mission(manual: Optional[ManualMissionTallyRequest] = None):
     mission_idx = game.current_mission_index
     game.mission_secret_sabotages[mission_idx] = sabotage_count
     
-    is_success = (sabotage_count == 0)
+    fails_needed = 1
+    if mission_idx < len(game.missions):
+        fails_needed = game.missions[mission_idx].get("fails_required", 1)
+        
+    is_success = (sabotage_count < fails_needed)
     
     if is_success:
         game.mission_results[mission_idx] = "SUCCESS"

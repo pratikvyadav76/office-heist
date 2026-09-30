@@ -248,6 +248,12 @@ function renderPlayerUI() {
   } else if (phase === 'DEBATE_AND_VOTE') {
     voteSec.style.display = 'block';
     waitCard.style.display = 'none';
+
+    const curMission = playerState.current_mission_info || (playerState.missions && playerState.missions[playerState.current_mission - 1]);
+    const mTitleEl = document.getElementById('mobileVoteMissionTitle');
+    if (mTitleEl && curMission) {
+      mTitleEl.innerText = `Mission ${playerState.current_mission}: ${curMission.title} (${curMission.story})`;
+    }
     
     // Show proposed chips
     const chipsCont = document.getElementById('mobileProposedChips');
@@ -272,6 +278,12 @@ function renderPlayerUI() {
     if (playerState.is_on_proposed_team) {
       actionSec.style.display = 'block';
       waitCard.style.display = 'none';
+
+      const curMission = playerState.current_mission_info || (playerState.missions && playerState.missions[playerState.current_mission - 1]);
+      const mActTitleEl = document.getElementById('mobileActionMissionTitle');
+      if (mActTitleEl && curMission) {
+        mActTitleEl.innerText = `Mission ${playerState.current_mission}: ${curMission.title} (${curMission.story})`;
+      }
       
       const sabBtn = document.getElementById('btnMobileSabotage');
       if (playerState.is_saboteur) {

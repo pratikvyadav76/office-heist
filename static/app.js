@@ -1,5 +1,33 @@
 // Main Application Logic for The Resistance: Office Heist
 
+const RAW_DEFAULT_PLAYERS = [
+  "Riya Patil (riya.patil)",
+  "Tanmay Indore (tanmay.indore)",
+  "Sushil Kanojiya (sushil.kanojiya)",
+  "Pratik Buge (pratik.buge)",
+  "Karthik Iyer (karthik.iyer)",
+  "Puja Godse (puja.godse)",
+  "Niki Panchal (niki.panchal)",
+  "Bhishma Mahajan (bhishma.mahajan)",
+  "Sonakshi Julka (sonakshi.julka)",
+  "Siddhesh Kadu (siddhesh.kadu)",
+  "Smeet Shethia (smeet.shethia)",
+  "Purva Hirve (purva.hirve)",
+  "Shrukti Tamakuwala (shrukti.tamakuwala)",
+  "Sanchay Mota (sanchay.mota)",
+  "Akshay Thakare (akshay.thakare)",
+  "Vidisha Shetty (vidisha.shetty)",
+  "Saket Shinde (saket.shinde)",
+  "Rohan Hile (rohan.hile)",
+  "Siddharth Sharma (siddharth.sharma)",
+  "Evelin Puthoor (evelin.puthoor)",
+  "Mohammad Arbaz (mohammad.arbaz)",
+  "Aishwarya Hate (aishwarya.hate)",
+  "Pratik Morale (pratik.morale)",
+  "Md Javed Akhter (javed.akhter)",
+  "Amit Anilkumar (amit.anilkumar)"
+];
+
 let gameState = null;
 let ws = null;
 let timerInterval = null;
@@ -33,10 +61,31 @@ function connectWebSocket() {
       } else if (data.type === 'MISSION_REVEAL') {
         handleMissionReveal(data);
       } else if (data.type === 'VOTE_CAST') {
-        document.getElementById('liveVotesCount').innerText = data.total_votes;
+        if (gameState) {
+          gameState.proposal_votes_count = data.total_votes;
+          if (data.voted_players) {
+            gameState.proposal_voted_players = data.voted_players;
+          } else if (data.player) {
+            if (!gameState.proposal_voted_players) gameState.proposal_voted_players = [];
+            if (!gameState.proposal_voted_players.includes(data.player)) {
+              gameState.proposal_voted_players.push(data.player);
+            }
+          }
+          updateDebateBallotStatus();
+        } else {
+          const countEl = document.getElementById('liveVotesCount');
+          if (countEl) countEl.innerText = data.total_votes;
+        }
         window.soundFx.playClick();
       } else if (data.type === 'MISSION_ACTION_SUBMITTED') {
-        document.getElementById('submissionCounter').innerText = data.submissions_count;
+        if (gameState) {
+          gameState.mission_submissions_count = data.submissions_count;
+          if (data.submitted_players) {
+            gameState.mission_submitted_players = data.submitted_players;
+          }
+        }
+        const counterEl = document.getElementById('submissionCounter');
+        if (counterEl) counterEl.innerText = data.submissions_count;
         window.soundFx.playClick();
       }
     } catch (e) {
@@ -123,17 +172,79 @@ function renderScoreboard() {
   }
 }
 
+// Setup Roster State
+let setupActivePlayers = [];
+let setupAbsentPlayers = [];
+let setupSaboteurCount = 5;
+let setupMissionSizes = [5, 6, 6, 7, 7];
+let isSetupInitialized = false;
+
+function initSetupState() {
+  if (!gameState || !gameState.players) return;
+  if (!isSetupInitialized || setupActivePlayers.length === 0) {
+    setupActivePlayers = [...gameState.players];
+    setupAbsentPlayers = [];
+    setupSaboteurCount = gameState.saboteur_count || calculateRecommendedSaboteurs(setupActivePlayers.length);
+    setupMissionSizes = gameState.mission_team_sizes ? [...gameState.mission_team_sizes] : calculateRecommendedTeamSizes(setupActivePlayers.length);
+    isSetupInitialized = true;
+  }
+}
+
+function calculateRecommendedSaboteurs(n) {
+  if (n <= 6) return 2;
+  if (n <= 9) return 3;
+  if (n <= 14) return 4;
+  return 5;
+}
+
+function calculateRecommendedTeamSizes(n) {
+  if (n === 5) return [2, 3, 2, 3, 3];
+  if (n === 6) return [2, 3, 4, 3, 4];
+  if (n === 7) return [2, 3, 3, 4, 4];
+  if (n >= 8 && n <= 10) return [3, 4, 4, 5, 5];
+  if (n <= 14) return [4, 5, 5, 6, 6];
+  return [5, 6, 6, 7, 7];
+}
+
+function removeSetupPlayer(name) {
+  window.soundFx.playClick();
+  setupActivePlayers = setupActivePlayers.filter(p => p !== name);
+  if (!setupAbsentPlayers.includes(name)) {
+    setupAbsentPlayers.push(name);
+  }
+  setupSaboteurCount = calculateRecommendedSaboteurs(setupActivePlayers.length);
+  setupMissionSizes = calculateRecommendedTeamSizes(setupActivePlayers.length);
+  renderSetupPhase();
+}
+
+function restoreSetupPlayer(name) {
+  window.soundFx.playClick();
+  setupAbsentPlayers = setupAbsentPlayers.filter(p => p !== name);
+  if (!setupActivePlayers.includes(name)) {
+    setupActivePlayers.push(name);
+  }
+  setupSaboteurCount = calculateRecommendedSaboteurs(setupActivePlayers.length);
+  setupMissionSizes = calculateRecommendedTeamSizes(setupActivePlayers.length);
+  renderSetupPhase();
+}
+
 // Render 5 Missions Bar
 function renderMissionsTrack() {
   if (!gameState) return;
   const container = document.getElementById('missionsRow');
   container.innerHTML = '';
   
-  const teamSizes = gameState.mission_team_sizes || [5, 6, 6, 7, 7];
+  const missions = gameState.missions || [
+    { title: "Op Blackout", team_size: 5 },
+    { title: "Minting Presses", team_size: 6 },
+    { title: "Governor's Vault", team_size: 6 },
+    { title: "Melt 90T Gold", team_size: 7 },
+    { title: "Rooftop Escape", team_size: 7 }
+  ];
   const results = gameState.mission_results || [null, null, null, null, null];
   const curIdx = gameState.current_mission - 1;
   
-  teamSizes.forEach((size, idx) => {
+  missions.forEach((m, idx) => {
     const node = document.createElement('div');
     node.className = 'mission-node';
     
@@ -160,8 +271,8 @@ function renderMissionsTrack() {
     }
     
     node.innerHTML = `
-      <div class="node-title">Mission ${idx + 1}</div>
-      <div class="node-size">${size} 👥</div>
+      <div class="node-title" title="${m.story || ''}">M${idx + 1}: ${m.title || `Mission ${idx+1}`}</div>
+      <div class="node-size">${m.team_size} 👥</div>
       <div class="node-status ${statusClass}">${statusText}</div>
     `;
     container.appendChild(node);
@@ -173,7 +284,10 @@ function renderPhase() {
   if (!gameState) return;
   
   const phases = ['phaseSetup', 'phaseProposal', 'phaseDebate', 'phaseProposalResult', 'phaseMissionAction', 'phaseGameOver'];
-  phases.forEach(id => document.getElementById(id).style.display = 'none');
+  phases.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
   
   if (gameState.phase === 'SETUP') {
     renderSetupPhase();
@@ -193,21 +307,63 @@ function renderPhase() {
 // PHASE: SETUP
 function renderSetupPhase() {
   const p = document.getElementById('phaseSetup');
+  if (!p) return;
   p.style.display = 'block';
   
-  document.getElementById('setupPlayerCount').innerText = gameState.players.length;
+  initSetupState();
+
+  const activeEl = document.getElementById('setupPlayerCount');
+  if (activeEl) activeEl.innerText = setupActivePlayers.length;
+  
+  const absentEl = document.getElementById('setupAbsentCount');
+  if (absentEl) absentEl.innerText = setupAbsentPlayers.length;
+
+  const sabEl = document.getElementById('setupSaboteurCount');
+  if (sabEl) sabEl.innerText = setupSaboteurCount;
+
+  const sizesSummary = document.getElementById('setupMissionSizesSummary');
+  if (sizesSummary) sizesSummary.innerText = setupMissionSizes.join(' • ');
+
   const grid = document.getElementById('setupRosterGrid');
   grid.innerHTML = '';
   
-  gameState.players.forEach(name => {
+  setupActivePlayers.forEach(name => {
     const chip = document.createElement('div');
     chip.className = 'player-chip';
     chip.innerHTML = `
       <div class="chip-name">${name}</div>
       <div class="chip-role-badge">Operative</div>
+      <button class="chip-remove-btn" title="Remove absent colleague">✕</button>
     `;
+    const btnDel = chip.querySelector('.chip-remove-btn');
+    btnDel.onclick = (e) => {
+      e.stopPropagation();
+      removeSetupPlayer(name);
+    };
     grid.appendChild(chip);
   });
+
+  // Render absent tray
+  const absentSection = document.getElementById('setupAbsentSection');
+  const absentGrid = document.getElementById('setupAbsentGrid');
+  if (absentSection && absentGrid) {
+    if (setupAbsentPlayers.length > 0) {
+      absentSection.style.display = 'block';
+      absentGrid.innerHTML = '';
+      setupAbsentPlayers.forEach(name => {
+        const item = document.createElement('div');
+        item.className = 'absent-chip';
+        item.innerHTML = `
+          <span>${name}</span>
+          <button class="absent-chip-restore">+ Restore</button>
+        `;
+        item.querySelector('.absent-chip-restore').onclick = () => restoreSetupPlayer(name);
+        absentGrid.appendChild(item);
+      });
+    } else {
+      absentSection.style.display = 'none';
+    }
+  }
 }
 
 // PHASE: LEADER PROPOSAL
@@ -274,6 +430,14 @@ function renderDebatePhase() {
   const p = document.getElementById('phaseDebate');
   p.style.display = 'block';
   
+  const curMission = (gameState.missions && gameState.missions[gameState.current_mission - 1]) || null;
+  const missionTitle = curMission ? `${curMission.title} (${curMission.story})` : `Mission ${gameState.current_mission}`;
+  
+  const mNumEl = document.getElementById('debateMissionNum');
+  if (mNumEl) mNumEl.innerText = gameState.current_mission;
+  const mDescEl = document.getElementById('debateMissionStoryDesc');
+  if (mDescEl) mDescEl.innerText = `Leader proposed the strike team below for ${missionTitle}. Debate their loyalty and cast secret ballots on your phones!`;
+
   document.getElementById('spotlightCount').innerText = gameState.proposed_team.length;
   const container = document.getElementById('proposedTeamChips');
   container.innerHTML = '';
@@ -285,13 +449,36 @@ function renderDebatePhase() {
     container.appendChild(badge);
   });
   
-  // Set default tally
-  const half = Math.ceil(gameState.players.length / 2);
-  document.getElementById('tallyYes').innerText = half + 1;
-  document.getElementById('tallyNo').innerText = gameState.players.length - (half + 1);
-  document.getElementById('liveVotesCount').innerText = gameState.proposal_votes_count || 0;
-  
+  updateDebateBallotStatus();
   resetTimer(90);
+}
+
+function updateDebateBallotStatus() {
+  if (!gameState) return;
+  const votedCount = gameState.proposal_votes_count || 0;
+  const totalCount = gameState.players ? gameState.players.length : 22;
+  const pct = Math.min(100, Math.round((votedCount / (totalCount || 1)) * 100));
+
+  const countEl = document.getElementById('liveVotesCount');
+  if (countEl) countEl.innerText = votedCount;
+  const totalEl = document.getElementById('liveVotesTotal');
+  if (totalEl) totalEl.innerText = totalCount;
+
+  const barEl = document.getElementById('ballotProgressBar');
+  if (barEl) barEl.style.width = `${pct}%`;
+
+  const votersGrid = document.getElementById('ballotVotersGrid');
+  if (votersGrid && gameState.players) {
+    votersGrid.innerHTML = '';
+    const votedList = gameState.proposal_voted_players || [];
+    gameState.players.forEach(pName => {
+      const hasVoted = votedList.includes(pName);
+      const chip = document.createElement('div');
+      chip.className = `voter-chip ${hasVoted ? 'voted' : 'waiting'}`;
+      chip.innerHTML = hasVoted ? `✓ ${pName}` : `⏳ ${pName}`;
+      votersGrid.appendChild(chip);
+    });
+  }
 }
 
 // PHASE: PROPOSAL RESULT
@@ -410,50 +597,149 @@ async function renderModeratorDrawer() {
   const pin = sessionStorage.getItem('heist_mod_pin');
   if (!pin) return;
   
-  // Whispers
   try {
-    const res = await fetch(`/api/whispers?pin=${encodeURIComponent(pin)}`);
+    const res = await fetch(`/api/state?role=moderator&pin=${encodeURIComponent(pin)}`);
     if (!res.ok) return;
     const data = await res.json();
-    const list = document.getElementById('modWhispersList');
-    list.innerHTML = '';
     
-    data.messages.forEach(item => {
-      const card = document.createElement('div');
-      card.className = 'whisper-card';
-      card.innerHTML = `
-        <div class="whisper-card-header">
-          <strong style="color: var(--saboteur-red);">😈 ${item.player}</strong>
-          <button class="btn-icon" style="font-size: 11px; padding: 4px 8px;" onclick="copyWhisper('${encodeURIComponent(item.message)}')">
-            📋 Copy Whisper
-          </button>
-        </div>
-        <div class="whisper-text">${item.message}</div>
-      `;
-      list.appendChild(card);
-    });
+    // Render Saboteurs list
+    const sabList = document.getElementById('modSaboteursList');
+    const sabCount = document.getElementById('modSaboteurCount');
+    if (sabList && data.saboteurs) {
+      if (sabCount) sabCount.innerText = data.saboteurs.length;
+      sabList.innerHTML = '';
+      data.saboteurs.forEach(name => {
+        const item = document.createElement('div');
+        item.style.background = 'rgba(255, 51, 102, 0.15)';
+        item.style.border = '1px solid var(--saboteur-red)';
+        item.style.borderRadius = '8px';
+        item.style.padding = '8px 12px';
+        item.style.fontSize = '13px';
+        item.style.fontWeight = '800';
+        item.style.color = '#fff';
+        item.innerHTML = `😈 ${name}`;
+        sabList.appendChild(item);
+      });
+    }
+
+    // Render Loyal Resistance list
+    const resList = document.getElementById('modResistanceList');
+    const resCount = document.getElementById('modResistanceCount');
+    if (resList && data.resistance_members) {
+      if (resCount) resCount.innerText = data.resistance_members.length;
+      resList.innerHTML = '';
+      data.resistance_members.forEach(name => {
+        const item = document.createElement('div');
+        item.style.background = 'rgba(0, 242, 254, 0.1)';
+        item.style.border = '1px solid var(--resistance-blue)';
+        item.style.borderRadius = '6px';
+        item.style.padding = '4px 8px';
+        item.style.fontSize = '11px';
+        item.style.color = '#fff';
+        item.innerHTML = `🏢 ${name}`;
+        resList.appendChild(item);
+      });
+    }
+
+    // Render 5 Heist Missions summary
+    const misList = document.getElementById('modMissionsList');
+    if (misList && data.missions) {
+      misList.innerHTML = '';
+      data.missions.forEach((m, idx) => {
+        const row = document.createElement('div');
+        row.style.background = 'rgba(255, 255, 255, 0.03)';
+        row.style.border = '1px solid var(--border-subtle)';
+        row.style.borderRadius = '6px';
+        row.style.padding = '6px 10px';
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.innerHTML = `
+          <div>
+            <strong style="color: var(--heist-gold);">M${idx+1}: ${m.title}</strong>
+            <div style="font-size: 10px; color: var(--text-muted);">${m.story}</div>
+          </div>
+          <div style="font-size: 11px; font-weight: 800; color: #fff;">
+            ${m.team_size} 👥 • ${m.fails_required || 1} Fail
+          </div>
+        `;
+        misList.appendChild(row);
+      });
+    }
+
+    // Event Log
+    const logContainer = document.getElementById('modEventLog');
+    if (logContainer && data.history_log) {
+      logContainer.innerHTML = '';
+      data.history_log.forEach(item => {
+        const el = document.createElement('div');
+        el.style.marginBottom = '6px';
+        el.innerHTML = `<span style="color: var(--gold-accent);">[M${item.mission}]</span> ${item.details}`;
+        logContainer.appendChild(el);
+      });
+    }
   } catch (e) {
-    console.error('Error fetching whispers:', e);
-  }
-  
-  // Event Log
-  const logContainer = document.getElementById('modEventLog');
-  logContainer.innerHTML = '';
-  if (gameState.history_log) {
-    gameState.history_log.forEach(item => {
-      const el = document.createElement('div');
-      el.style.marginBottom = '6px';
-      el.innerHTML = `<span style="color: var(--gold-accent);">[M${item.mission}]</span> ${item.details}`;
-      logContainer.appendChild(el);
-    });
+    console.error('Error fetching moderator state:', e);
   }
 }
 
-function copyWhisper(encodedMsg) {
-  const msg = decodeURIComponent(encodedMsg);
-  navigator.clipboard.writeText(msg).then(() => {
-    alert('Copied WhatsApp whisper text to clipboard!');
+// Mission Customizer Modal Functions
+function openMissionEditor() {
+  if (!gameState || !gameState.missions) return;
+  const modal = document.getElementById('missionEditorModal');
+  const container = document.getElementById('missionEditorRows');
+  container.innerHTML = '';
+  
+  gameState.missions.forEach((m, idx) => {
+    const row = document.createElement('div');
+    row.className = 'mission-editor-row';
+    row.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <strong style="color: var(--gold-accent);">Mission ${idx + 1}</strong>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <label style="font-size: 11px; color: var(--text-muted);">Crew Size:</label>
+          <input type="number" class="med-size-input" data-index="${idx+1}" value="${m.team_size}" min="2" max="15" style="width: 50px; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); color: #fff; text-align: center;">
+          <label style="font-size: 11px; color: var(--text-muted);">Fails Needed:</label>
+          <input type="number" class="med-fails-input" data-index="${idx+1}" value="${m.fails_required || 1}" min="1" max="5" style="width: 50px; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); color: #fff; text-align: center;">
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+        <input type="text" class="med-title-input" data-index="${idx+1}" value="${m.title}" placeholder="Mission Title" style="padding: 6px; border-radius: 6px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); color: #fff; font-size: 12px;">
+        <input type="text" class="med-story-input" data-index="${idx+1}" value="${m.story}" placeholder="Storyline objective" style="padding: 6px; border-radius: 6px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); color: #fff; font-size: 12px;">
+      </div>
+    `;
+    container.appendChild(row);
   });
+  
+  modal.classList.add('open');
+}
+
+async function saveCustomMissions() {
+  const pin = sessionStorage.getItem('heist_mod_pin') || '2026';
+  const sizeInputs = document.querySelectorAll('.med-size-input');
+  const failsInputs = document.querySelectorAll('.med-fails-input');
+  const titleInputs = document.querySelectorAll('.med-title-input');
+  const storyInputs = document.querySelectorAll('.med-story-input');
+  
+  const missions = [];
+  for (let i = 0; i < 5; i++) {
+    missions.push({
+      index: i + 1,
+      title: titleInputs[i].value.trim() || `Mission ${i+1}`,
+      story: storyInputs[i].value.trim() || `Objective ${i+1}`,
+      team_size: parseInt(sizeInputs[i].value) || 5,
+      fails_required: parseInt(failsInputs[i].value) || 1
+    });
+  }
+  
+  await fetch('/api/customize-missions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ missions, pin })
+  });
+  
+  document.getElementById('missionEditorModal').classList.remove('open');
+  fetchState();
 }
 
 // Universal Timer Synchronization & Backend Actions
@@ -670,11 +956,25 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   
   // Moderator Drawer Toggle with PIN Authentication
+  function openModDrawer() {
+    const d = document.getElementById('modDrawer');
+    if (d) d.classList.add('open');
+    const b = document.getElementById('modDrawerBackdrop');
+    if (b) b.classList.add('open');
+    renderModeratorDrawer();
+  }
+
+  function closeModDrawer() {
+    const d = document.getElementById('modDrawer');
+    if (d) d.classList.remove('open');
+    const b = document.getElementById('modDrawerBackdrop');
+    if (b) b.classList.remove('open');
+  }
+
   document.getElementById('btnModToggle').onclick = () => {
     const savedPin = sessionStorage.getItem('heist_mod_pin');
     if (savedPin) {
-      document.getElementById('modDrawer').classList.add('open');
-      renderModeratorDrawer();
+      openModDrawer();
     } else {
       document.getElementById('inputModPin').value = '';
       document.getElementById('pinErrorMsg').style.display = 'none';
@@ -694,7 +994,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         sessionStorage.setItem('heist_mod_pin', pin);
         document.getElementById('modPinModal').classList.remove('open');
-        document.getElementById('modDrawer').classList.add('open');
+        openModDrawer();
         fetchState();
       } else {
         document.getElementById('pinErrorMsg').style.display = 'block';
@@ -708,10 +1008,28 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('modPinModal').classList.remove('open');
   };
 
-  document.getElementById('btnCloseMod').onclick = () => {
-    document.getElementById('modDrawer').classList.remove('open');
-  };
-  
+  const btnCloseMod = document.getElementById('btnCloseMod');
+  if (btnCloseMod) btnCloseMod.onclick = closeModDrawer;
+
+  const modBackdrop = document.getElementById('modDrawerBackdrop');
+  if (modBackdrop) modBackdrop.onclick = closeModDrawer;
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeModDrawer();
+      const pinModal = document.getElementById('modPinModal');
+      if (pinModal) pinModal.classList.remove('open');
+      const qrModal = document.getElementById('qrModal');
+      if (qrModal) qrModal.classList.remove('open');
+      const kioskModal = document.getElementById('kioskModal');
+      if (kioskModal) kioskModal.classList.remove('open');
+      const rouletteModal = document.getElementById('rouletteModal');
+      if (rouletteModal) rouletteModal.classList.remove('open');
+      const medModal = document.getElementById('missionEditorModal');
+      if (medModal) medModal.classList.remove('open');
+    }
+  });
+
   // QR Modal Logic
   function renderQr(targetUrl) {
     document.getElementById('qrUrlDisplay').innerText = targetUrl;
@@ -723,54 +1041,124 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  document.getElementById('btnQr').onclick = () => {
-    // Generate mobile join link based on the current website URL
-    let playUrl = `${window.location.origin}/play`;
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      const ip = gameState ? gameState.local_ip : window.location.hostname;
-      const port = window.location.port ? `:${window.location.port}` : '';
-      playUrl = `http://${ip}${port}/play`;
-    }
-    renderQr(playUrl);
-    document.getElementById('copySuccessMsg').style.display = 'none';
-    document.getElementById('qrModal').classList.add('open');
-  };
+  const btnQr = document.getElementById('btnQr');
+  if (btnQr) {
+    btnQr.onclick = () => {
+      let playUrl = `${window.location.origin}/play`;
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        const ip = gameState ? gameState.local_ip : window.location.hostname;
+        const port = window.location.port ? `:${window.location.port}` : '';
+        playUrl = `http://${ip}${port}/play`;
+      }
+      renderQr(playUrl);
+      const copyMsg = document.getElementById('copySuccessMsg');
+      if (copyMsg) copyMsg.style.display = 'none';
+      document.getElementById('qrModal').classList.add('open');
+    };
+  }
 
-  document.getElementById('btnCopyMobileLink').onclick = async () => {
-    const url = document.getElementById('qrUrlDisplay').innerText.trim();
-    try {
-      await navigator.clipboard.writeText(url);
-      const msg = document.getElementById('copySuccessMsg');
-      msg.style.display = 'block';
-      setTimeout(() => { msg.style.display = 'none'; }, 3000);
-    } catch (e) {
-      prompt('Copy this link for your colleagues:', url);
-    }
-  };
+  const btnCopyMob = document.getElementById('btnCopyMobileLink');
+  if (btnCopyMob) {
+    btnCopyMob.onclick = async () => {
+      const url = document.getElementById('qrUrlDisplay').innerText.trim();
+      try {
+        await navigator.clipboard.writeText(url);
+        const msg = document.getElementById('copySuccessMsg');
+        if (msg) msg.style.display = 'block';
+        setTimeout(() => { if (msg) msg.style.display = 'none'; }, 3000);
+      } catch (e) {
+        prompt('Copy this link for your colleagues:', url);
+      }
+    };
+  }
 
-  document.getElementById('btnCloseQr').onclick = () => {
-    document.getElementById('qrModal').classList.remove('open');
-  };
-  
+  const btnCloseQr = document.getElementById('btnCloseQr');
+  if (btnCloseQr) {
+    btnCloseQr.onclick = () => {
+      document.getElementById('qrModal').classList.remove('open');
+    };
+  }
+
   // Setup Actions
   document.getElementById('btnStartGame').onclick = async () => {
     window.soundFx.playClick();
     const pin = sessionStorage.getItem('heist_mod_pin') || '2026';
+    const playersToStart = setupActivePlayers.length > 0 ? setupActivePlayers : gameState.players;
     await fetch('/api/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ players: gameState.players, pin: pin })
+      body: JSON.stringify({
+        players: playersToStart,
+        saboteur_count: setupSaboteurCount,
+        mission_team_sizes: setupMissionSizes,
+        pin: pin
+      })
     });
     fetchState();
   };
+
+  const btnReset = document.getElementById('btnResetRoster');
+  if (btnReset) {
+    btnReset.onclick = () => {
+      window.soundFx.playClick();
+      setupActivePlayers = RAW_DEFAULT_PLAYERS ? [...RAW_DEFAULT_PLAYERS] : (gameState ? [...gameState.players] : []);
+      setupAbsentPlayers = [];
+      setupSaboteurCount = calculateRecommendedSaboteurs(setupActivePlayers.length);
+      setupMissionSizes = calculateRecommendedTeamSizes(setupActivePlayers.length);
+      renderSetupPhase();
+    };
+  }
+
+  const inputNewPlayer = document.getElementById('newPlayerName');
+  const btnAdd = document.getElementById('btnAddPlayer');
   
+  function addNewPlayerFromInput() {
+    const val = inputNewPlayer.value.trim();
+    if (!val) return;
+    window.soundFx.playClick();
+    if (!setupActivePlayers.includes(val)) {
+      setupActivePlayers.push(val);
+    }
+    inputNewPlayer.value = '';
+    setupSaboteurCount = calculateRecommendedSaboteurs(setupActivePlayers.length);
+    setupMissionSizes = calculateRecommendedTeamSizes(setupActivePlayers.length);
+    renderSetupPhase();
+  }
+
+  if (btnAdd) btnAdd.onclick = addNewPlayerFromInput;
+  if (inputNewPlayer) {
+    inputNewPlayer.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addNewPlayerFromInput();
+      }
+    };
+  }
+
+  const btnDecSab = document.getElementById('btnDecSaboteur');
+  if (btnDecSab) {
+    btnDecSab.onclick = () => {
+      window.soundFx.playClick();
+      setupSaboteurCount = Math.max(1, setupSaboteurCount - 1);
+      renderSetupPhase();
+    };
+  }
+  const btnIncSab = document.getElementById('btnIncSaboteur');
+  if (btnIncSab) {
+    btnIncSab.onclick = () => {
+      window.soundFx.playClick();
+      setupSaboteurCount = Math.min(Math.floor(setupActivePlayers.length / 2), setupSaboteurCount + 1);
+      renderSetupPhase();
+    };
+  }
+
   // Rotate Leader
   document.getElementById('btnRotateLeader').onclick = async () => {
     window.soundFx.playClick();
     await fetch('/api/rotate-leader-manually', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     fetchState();
   };
-  
+
   // Confirm Proposed Team
   document.getElementById('btnConfirmProposal').onclick = async () => {
     window.soundFx.playClick();
@@ -782,54 +1170,75 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     fetchState();
   };
-  
+
   // Timer buttons
   document.getElementById('btnTimerStart').onclick = () => startTimer();
   document.getElementById('btnTimerPause').onclick = () => pauseTimer();
   document.getElementById('btnTimerReset').onclick = () => resetTimer(90);
-  
-  // Tally Yes/No buttons
+
+  // Emergency Tally buttons (inside accordion)
   const tallyYes = document.getElementById('tallyYes');
   const tallyNo = document.getElementById('tallyNo');
-  document.getElementById('btnIncYes').onclick = () => { tallyYes.innerText = parseInt(tallyYes.innerText) + 1; };
-  document.getElementById('btnDecYes').onclick = () => { tallyYes.innerText = Math.max(0, parseInt(tallyYes.innerText) - 1); };
-  document.getElementById('btnIncNo').onclick = () => { tallyNo.innerText = parseInt(tallyNo.innerText) + 1; };
-  document.getElementById('btnDecNo').onclick = () => { tallyNo.innerText = Math.max(0, parseInt(tallyNo.innerText) - 1); };
-  
-  // Resolve Team Proposal Vote
+  const btnIncY = document.getElementById('btnIncYes');
+  if (btnIncY) btnIncY.onclick = () => { tallyYes.innerText = parseInt(tallyYes.innerText || '0') + 1; };
+  const btnDecY = document.getElementById('btnDecYes');
+  if (btnDecY) btnDecY.onclick = () => { tallyYes.innerText = Math.max(0, parseInt(tallyYes.innerText || '0') - 1); };
+  const btnIncN = document.getElementById('btnIncNo');
+  if (btnIncN) btnIncN.onclick = () => { tallyNo.innerText = parseInt(tallyNo.innerText || '0') + 1; };
+  const btnDecN = document.getElementById('btnDecNo');
+  if (btnDecN) btnDecN.onclick = () => { tallyNo.innerText = Math.max(0, parseInt(tallyNo.innerText || '0') - 1); };
+
+  // Resolve Team Proposal Vote (Pure mobile vote calculation!)
   document.getElementById('btnResolveProposalVote').onclick = async () => {
     pauseTimer();
-    const yesCount = parseInt(tallyYes.innerText);
-    const noCount = parseInt(tallyNo.innerText);
-    
     const res = await fetch('/api/resolve-proposal-vote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ yes_count: yesCount, no_count: noCount })
+      body: JSON.stringify({})
     });
     const result = await res.json();
-    
-    // Play sound
+    handleProposalVoteResult(result);
+  };
+
+  const btnManualVote = document.getElementById('btnManualOverrideVote');
+  if (btnManualVote) {
+    btnManualVote.onclick = async () => {
+      pauseTimer();
+      const yesCount = parseInt(document.getElementById('tallyYes').innerText || '0');
+      const noCount = parseInt(document.getElementById('tallyNo').innerText || '0');
+      const res = await fetch('/api/resolve-proposal-vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ yes_count: yesCount, no_count: noCount })
+      });
+      const result = await res.json();
+      handleProposalVoteResult(result);
+    };
+  }
+
+  function handleProposalVoteResult(result) {
     if (result.approved) {
       window.soundFx.playApproved();
     } else {
       window.soundFx.playRejected();
     }
-    
-    // Update banner
+
     const banner = document.getElementById('proposalResultBanner');
     const icon = document.getElementById('proposalResultIcon');
     const title = document.getElementById('proposalResultTitle');
     const details = document.getElementById('proposalResultDetails');
     const proceedBtn = document.getElementById('btnProceedToMission');
-    
+
+    const yesCount = result.yes_votes;
+    const noCount = result.no_votes;
+
     if (result.approved) {
       banner.style.background = 'rgba(16, 185, 129, 0.15)';
       banner.style.border = '2px solid var(--success-green)';
       icon.innerText = '✅';
       title.innerText = 'TEAM PROPOSAL APPROVED!';
       title.style.color = 'var(--success-green)';
-      details.innerText = `${yesCount} Approved vs ${noCount} Rejected. The heist team enters the vault!`;
+      details.innerText = `${yesCount} Approved vs ${noCount} Rejected by mobile ballot. The heist team enters the vault!`;
       proceedBtn.style.display = 'inline-block';
     } else {
       banner.style.background = 'rgba(255, 51, 102, 0.15)';
@@ -837,14 +1246,27 @@ document.addEventListener('DOMContentLoaded', () => {
       icon.innerText = '❌';
       title.innerText = 'TEAM PROPOSAL REJECTED!';
       title.style.color = 'var(--saboteur-red)';
-      details.innerText = `${noCount} Rejected vs ${yesCount} Approved. Leader token passes clockwise!`;
+      details.innerText = `${noCount} Rejected vs ${yesCount} Approved by mobile ballot. Leader token passes clockwise!`;
       proceedBtn.style.display = 'none';
       setTimeout(() => fetchState(), 2500);
     }
-    
+
     document.getElementById('phaseDebate').style.display = 'none';
     document.getElementById('phaseProposalResult').style.display = 'block';
-  };
+  }
+
+  // Mission Editor Modal Wiring
+  const btnOpenMed = document.getElementById('btnOpenMissionEditor');
+  if (btnOpenMed) btnOpenMed.onclick = openMissionEditor;
+
+  const btnCloseMed = document.getElementById('btnCloseMissionEditor');
+  if (btnCloseMed) btnCloseMed.onclick = () => document.getElementById('missionEditorModal').classList.remove('open');
+
+  const btnCancelMed = document.getElementById('btnCancelMissions');
+  if (btnCancelMed) btnCancelMed.onclick = () => document.getElementById('missionEditorModal').classList.remove('open');
+
+  const btnSaveMed = document.getElementById('btnSaveMissions');
+  if (btnSaveMed) btnSaveMed.onclick = saveCustomMissions;
   
   document.getElementById('btnProceedToMission').onclick = () => {
     fetchState();
