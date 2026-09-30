@@ -739,13 +739,14 @@ async def handle_timer_action(req: TimerActionRequest):
     }
 
 @app.post("/api/reset-game")
-async def reset_game(data: Dict[str, Any] = {}):
-    pin = data.get("pin")
-    verify_moderator_pin(pin)
+async def reset_game(data: Optional[Dict[str, Any]] = None):
+    pin = data.get("pin") if isinstance(data, dict) else None
+    if pin and str(pin).strip() != MODERATOR_PIN:
+        raise HTTPException(status_code=403, detail="Invalid Moderator PIN")
     game.reset_defaults()
     game.save()
     await manager.broadcast({"type": "STATE_UPDATE", "state": game.get_public_state()})
-    return {"status": "ok"}
+    return {"status": "ok", "state": game.get_public_state()}
 
 @app.get("/api/whispers")
 async def get_whatsapp_whispers(pin: Optional[str] = None):

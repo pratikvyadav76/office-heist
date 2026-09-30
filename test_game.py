@@ -201,5 +201,27 @@ class TestOfficeHeistGame(unittest.TestCase):
             for exc in excluded_names:
                 self.assertIn(exc, resistance, f"Excluded player '{exc}' was missing from Resistance!")
 
+    def test_reset_game_endpoint(self):
+        # Start game
+        self.client.post("/api/setup", json={"players": DEFAULT_PLAYERS, "pin": MODERATOR_PIN})
+        state = self.client.get("/api/state").json()
+        self.assertEqual(state["phase"], "LEADER_PROPOSAL")
+        
+        # Reset without pin (smooth UI reset)
+        res_no_pin = self.client.post("/api/reset-game")
+        self.assertEqual(res_no_pin.status_code, 200)
+        state_after = self.client.get("/api/state").json()
+        self.assertEqual(state_after["phase"], "SETUP")
+        self.assertEqual(len(state_after["players"]), len(DEFAULT_PLAYERS))
+        
+        # Reset with wrong pin should fail with 403
+        res_bad = self.client.post("/api/reset-game", json={"pin": "wrong"})
+        self.assertEqual(res_bad.status_code, 403)
+        
+        # Reset with correct pin succeeds
+        res_ok = self.client.post("/api/reset-game", json={"pin": MODERATOR_PIN})
+        self.assertEqual(res_ok.status_code, 200)
+        self.assertEqual(res_ok.json()["state"]["phase"], "SETUP")
+
 if __name__ == "__main__":
     unittest.main()

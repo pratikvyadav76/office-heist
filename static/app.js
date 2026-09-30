@@ -193,6 +193,14 @@ function initSetupState() {
   }
 }
 
+function resetSetupState() {
+  isSetupInitialized = false;
+  setupActivePlayers = RAW_DEFAULT_PLAYERS ? [...RAW_DEFAULT_PLAYERS] : (gameState ? [...gameState.players] : []);
+  setupAbsentPlayers = [];
+  setupSaboteurCount = calculateRecommendedSaboteurs(setupActivePlayers.length);
+  setupMissionSizes = calculateRecommendedTeamSizes(setupActivePlayers.length);
+}
+
 function calculateRecommendedSaboteurs(n) {
   if (n <= 6) return 2;
   if (n <= 9) return 3;
@@ -1317,7 +1325,14 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Restart Game
   document.getElementById('btnRestartGame').onclick = async () => {
-    await fetch('/api/reset-game', { method: 'POST' });
+    window.soundFx.playClick();
+    const pin = sessionStorage.getItem('heist_mod_pin') || '2026';
+    await fetch('/api/reset-game', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    resetSetupState();
     fetchState();
   };
   
@@ -1329,8 +1344,17 @@ document.addEventListener('DOMContentLoaded', () => {
   
   document.getElementById('btnModResetGame').onclick = async () => {
     if (confirm('Are you sure you want to reset the game back to setup?')) {
-      await fetch('/api/reset-game', { method: 'POST' });
+      window.soundFx.playClick();
+      const pin = sessionStorage.getItem('heist_mod_pin') || '2026';
+      await fetch('/api/reset-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin })
+      });
+      resetSetupState();
       document.getElementById('modDrawer').classList.remove('open');
+      const backdrop = document.getElementById('modDrawerBackdrop');
+      if (backdrop) backdrop.classList.remove('open');
       fetchState();
     }
   };
