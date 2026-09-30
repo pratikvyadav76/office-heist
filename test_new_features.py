@@ -31,7 +31,7 @@ try:
         # Check initial count
         initial_count = page.locator("#setupPlayerCount").inner_text()
         print(f"Initial setup count: {initial_count}")
-        assert initial_count == "25", f"Expected 25, got {initial_count}"
+        assert initial_count == "28", f"Expected 28, got {initial_count}"
         
         # Click remove on the first chip
         first_chip = page.locator(".player-chip").first
@@ -44,7 +44,7 @@ try:
         new_count = page.locator("#setupPlayerCount").inner_text()
         absent_count = page.locator("#setupAbsentCount").inner_text()
         print(f"New count: {new_count}, Absent count: {absent_count}")
-        assert new_count == "24", f"Expected 24, got {new_count}"
+        assert new_count == "27", f"Expected 27, got {new_count}"
         assert absent_count == "1", f"Expected 1, got {absent_count}"
         
         # Verify absent tray has the player and restore works
@@ -53,7 +53,7 @@ try:
         page.locator(".absent-chip-restore").first.click()
         time.sleep(0.5)
         restored_count = page.locator("#setupPlayerCount").inner_text()
-        assert restored_count == "25", f"Expected restored count 25, got {restored_count}"
+        assert restored_count == "28", f"Expected restored count 28, got {restored_count}"
         print("Absentee removal and restore passed!")
         
         print("\n2. Testing Moderator Control Room Open & Close...")
@@ -118,7 +118,7 @@ try:
         # Check initial voter chips (all waiting)
         waiting_chips = page.locator(".voter-chip.waiting")
         print(f"Initial waiting voters count: {waiting_chips.count()}")
-        assert waiting_chips.count() == 25, f"Expected 25 waiting voters, got {waiting_chips.count()}"
+        assert waiting_chips.count() == 28, f"Expected 28 waiting voters, got {waiting_chips.count()}"
         
         # Simulate mobile votes via API
         state = requests.get("http://localhost:8088/api/state").json()

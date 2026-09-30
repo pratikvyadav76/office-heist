@@ -50,7 +50,10 @@ RAW_PLAYER_DATA = [
     ("Aishwarya Hate", "aishwarya.hate"),
     ("Pratik Morale", "pratik.morale"),
     ("Md Javed Akhter", "javed.akhter"),
-    ("Amit Anilkumar", "amit.anilkumar")
+    ("Amit Anilkumar", "amit.anilkumar"),
+    ("Rushabh Shinde", "rushabh.shinde"),
+    ("Shubhangini M", "shubhangini.m"),
+    ("Swarabhishek K", "swarabhishek.k")
 ]
 
 DEFAULT_PLAYERS = [f"{name} ({uname})" for name, uname in RAW_PLAYER_DATA]
