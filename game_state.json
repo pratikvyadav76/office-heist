@@ -27,13 +27,7 @@
     "Amit Anilkumar (amit.anilkumar)"
   ],
   "saboteur_count": 5,
-  "saboteurs": [
-    "Karthik Iyer (karthik.iyer)",
-    "Evelin Puthoor (evelin.puthoor)",
-    "Smeet Shethia (smeet.shethia)",
-    "Pratik Buge (pratik.buge)",
-    "Md Javed Akhter (javed.akhter)"
-  ],
+  "saboteurs": [],
   "current_mission_index": 0,
   "mission_results": [
     null,
@@ -53,30 +47,11 @@
   "saboteur_score": 0,
   "game_over": false,
   "winner": null,
-  "phase": "DEBATE_AND_VOTE",
+  "phase": "SETUP",
   "leader_index": 0,
-  "proposed_team": [
-    "Riya Patil (riya.patil)",
-    "Tanmay Indore (tanmay.indore)",
-    "Sushil Kanojiya (sushil.kanojiya)",
-    "Pratik Buge (pratik.buge)",
-    "Karthik Iyer (karthik.iyer)"
-  ],
+  "proposed_team": [],
   "proposal_attempt": 1,
   "proposal_votes": {},
   "mission_submissions": {},
-  "history_log": [
-    {
-      "type": "TEAM_PROPOSED",
-      "details": "Leader Riya Patil (riya.patil) proposed team: Riya Patil (riya.patil), Tanmay Indore (tanmay.indore), Sushil Kanojiya (sushil.kanojiya), Pratik Buge (pratik.buge), Karthik Iyer (karthik.iyer) (Attempt 1/5)",
-      "mission": 1,
-      "attempt": 1
-    },
-    {
-      "type": "GAME_STARTED",
-      "details": "Game started with 25 players. 5 Saboteurs assigned in secret.",
-      "mission": 1,
-      "attempt": 1
-    }
-  ]
+  "history_log": []
 }

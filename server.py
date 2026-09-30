@@ -3,6 +3,7 @@ import json
 import random
 import socket
 import asyncio
+import time
 from typing import List, Dict, Optional, Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Header
 from fastapi.staticfiles import StaticFiles
@@ -116,6 +117,7 @@ class GameState:
         self.mission_submissions: Dict[str, str] = {}
         self.timer_seconds: int = 90
         self.timer_running: bool = False
+        self.timer_end_timestamp: float = 0.0
         self.history_log: List[Dict[str, Any]] = []
 
     def assign_roles(self, custom_saboteurs: Optional[List[str]] = None):
@@ -129,8 +131,25 @@ class GameState:
         self.log_event("GAME_STARTED", f"Game started with {len(self.players)} players. 5 Saboteurs assigned in secret.")
         self.save()
 
+    def spin_random_leader(self) -> str:
+        if not self.players:
+            return ""
+        available = [i for i in range(len(self.players)) if i != self.leader_index]
+        self.leader_index = random.choice(available) if available else 0
+        new_leader = self.players[self.leader_index]
+        self.log_event("LEADER_SPUN", f"The Professor's Roulette appointed {new_leader} as the new Heist Leader!")
+        self.save()
+        return new_leader
+
     def get_public_state(self) -> dict:
         required_team_size = MISSION_TEAM_SIZES[self.current_mission_index] if self.current_mission_index < 5 else 0
+        rem_sec = self.timer_seconds
+        if self.timer_running and self.timer_end_timestamp > 0:
+            rem_sec = max(0, int(self.timer_end_timestamp - time.time()))
+            if rem_sec == 0:
+                self.timer_running = False
+                self.timer_seconds = 0
+
         return {
             "phase": self.phase,
             "players": self.players,
@@ -153,8 +172,9 @@ class GameState:
             "proposal_votes_count": len(self.proposal_votes),
             "proposal_votes_cast": self.proposal_votes if self.phase in ["PROPOSAL_RESULT", "MISSION_ACTION", "MISSION_RESULT", "GAME_OVER"] else {},
             "mission_submissions_count": len(self.mission_submissions),
-            "timer_seconds": self.timer_seconds,
+            "timer_seconds": rem_sec,
             "timer_running": self.timer_running,
+            "timer_end_timestamp": self.timer_end_timestamp if self.timer_running else 0,
             "history_log": self.history_log,
             "local_ip": get_local_ip(),
             "moderators": MODERATORS
@@ -281,6 +301,14 @@ class ManualMissionTallyRequest(BaseModel):
     success_count: int
     sabotage_count: int
 
+class TimerActionRequest(BaseModel):
+    action: str
+    seconds: Optional[int] = 90
+    pin: Optional[str] = None
+
+class SpinLeaderRequest(BaseModel):
+    pin: Optional[str] = None
+
 def verify_moderator_pin(pin: Optional[str]):
     if not pin or str(pin).strip() != MODERATOR_PIN:
         raise HTTPException(status_code=403, detail="Invalid Moderator PIN")
@@ -304,7 +332,8 @@ async def verify_pin(data: Dict[str, str]):
 
 @app.post("/api/setup")
 async def setup_game(req: SetupRequest):
-    verify_moderator_pin(req.pin)
+    if req.pin:
+        verify_moderator_pin(req.pin)
     game.players = [p.strip() for p in req.players if p.strip()]
     if len(game.players) < 5:
         raise HTTPException(status_code=400, detail="At least 5 players required")
@@ -478,6 +507,52 @@ async def rotate_leader_manually(req: Dict[str, Any] = {}):
     game.save()
     await manager.broadcast({"type": "STATE_UPDATE", "state": game.get_public_state()})
     return {"current_leader": game.players[game.leader_index]}
+
+@app.post("/api/spin-leader")
+async def spin_leader(req: SpinLeaderRequest = SpinLeaderRequest()):
+    if not game.players:
+        raise HTTPException(status_code=400, detail="No players available in the heist crew")
+    new_leader = game.spin_random_leader()
+    await manager.broadcast({
+        "type": "LEADER_SPUN",
+        "leader": new_leader,
+        "leader_index": game.leader_index,
+        "state": game.get_public_state()
+    })
+    return {"status": "ok", "current_leader": new_leader, "leader_index": game.leader_index}
+
+@app.post("/api/timer-action")
+async def handle_timer_action(req: TimerActionRequest):
+    act = req.action.upper()
+    if act == "START":
+        game.timer_running = True
+        if req.seconds is not None and req.seconds > 0:
+            game.timer_seconds = req.seconds
+        game.timer_end_timestamp = time.time() + game.timer_seconds
+    elif act == "PAUSE":
+        if game.timer_running and game.timer_end_timestamp > 0:
+            game.timer_seconds = max(0, int(game.timer_end_timestamp - time.time()))
+        game.timer_running = False
+        game.timer_end_timestamp = 0.0
+    elif act == "RESET":
+        game.timer_running = False
+        game.timer_seconds = req.seconds if req.seconds is not None else 90
+        game.timer_end_timestamp = 0.0
+    game.save()
+    
+    await manager.broadcast({
+        "type": "TIMER_UPDATE",
+        "timer_seconds": game.timer_seconds,
+        "timer_running": game.timer_running,
+        "timer_end_timestamp": game.timer_end_timestamp,
+        "state": game.get_public_state()
+    })
+    return {
+        "status": "ok",
+        "timer_seconds": game.timer_seconds,
+        "timer_running": game.timer_running,
+        "timer_end_timestamp": game.timer_end_timestamp
+    }
 
 @app.post("/api/reset-game")
 async def reset_game(data: Dict[str, Any] = {}):

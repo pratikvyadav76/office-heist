@@ -12,17 +12,26 @@
   <!-- Top Navigation Bar -->
   <header class="top-nav">
     <div class="logo-area">
-      <div class="logo-icon">💼⚡</div>
+      <div class="logo-icon">🎭</div>
       <div class="logo-text">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <h1>Office Heist</h1>
-          <span style="font-size: 10px; background: rgba(0, 242, 254, 0.2); color: var(--resistance-blue); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--resistance-blue); font-weight: 700;">🖥️ BIG SCREEN / ROOM DISPLAY</span>
+          <h1 style="color: var(--heist-red); letter-spacing: 1px;">LA CASA DE PAPEL</h1>
+          <span style="font-size: 10px; background: rgba(229, 9, 20, 0.2); color: var(--heist-red); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--heist-red); font-weight: 800;">OFFICE HEIST</span>
         </div>
-        <div class="subtitle">The Resistance • Fun Friday Corporate Edition (Players join on phone)</div>
+        <div class="subtitle">Royal Mint Edition • 22 Operatives + 3 Host Moderators</div>
       </div>
     </div>
     
     <div class="nav-actions">
+      <!-- Synced Timer Pill -->
+      <div id="topNavTimer" class="universal-timer-badge">
+        ⏱️ <span id="topTimerDigits">01:30</span>
+      </div>
+
+      <button id="btnBellaCiao" class="btn-icon" title="Play Bella Ciao Theme" style="background: rgba(229, 9, 20, 0.2); border-color: var(--heist-red); color: #fff;">
+        🎵 <span class="nav-btn-text">Bella Ciao</span>
+      </button>
+
       <button id="btnQr" class="btn-icon" title="Show Phone Join QR">
         📱 <span class="nav-btn-text">Join on Mobile</span>
       </button>
@@ -37,6 +46,28 @@
       </button>
     </div>
   </header>
+
+  <!-- Universal Leader Banner (Money Heist) -->
+  <section class="universal-leader-banner" id="universalLeaderBanner">
+    <div class="leader-badge-left">
+      <div class="leader-crown-icon">👑</div>
+      <div>
+        <div class="leader-title-tag">The Professor's Current Team Leader</div>
+        <div class="leader-name-text" id="univLeaderName">Awaiting Role Assignment...</div>
+      </div>
+    </div>
+    <div class="leader-controls-right">
+      <button id="btnTriggerRoulette" class="btn-icon" style="background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%); color: #000; font-weight: 800; border: none;">
+        🎲 Professor's Roulette
+      </button>
+      <button id="btnRotateNextLeader" class="btn-icon" title="Pass clockwise">
+        🔄 Next Leader
+      </button>
+    </div>
+  </section>
+
+  <!-- Leader Toast Notification -->
+  <div id="leaderToast" class="leader-toast">👑 NEW LEADER APPOINTED!</div>
 
   <!-- Scoreboard & Mission Track -->
   <section class="dashboard-track">
@@ -448,6 +479,28 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Professor's Roulette Modal (Money Heist Leader Selection) -->
+  <div id="rouletteModal" class="roulette-modal">
+    <div class="roulette-box">
+      <div class="roulette-dali-mask">🎭</div>
+      <h2 style="font-size: 24px; font-weight: 900; color: var(--heist-gold); letter-spacing: 1.5px; text-transform: uppercase;">The Professor's Roulette</h2>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Assigning Command of the Heist...</p>
+      
+      <div class="roulette-reel">
+        <div class="roulette-name" id="rouletteNameText">SPINNING...</div>
+      </div>
+
+      <div id="rouletteResultBanner" style="display: none; padding: 14px; background: rgba(245, 158, 11, 0.15); border: 1px solid var(--heist-gold); border-radius: 12px; margin-top: 14px;">
+        <div style="font-size: 11px; text-transform: uppercase; color: var(--heist-gold); font-weight: 800; letter-spacing: 1px;">Command Appointed To:</div>
+        <div style="font-size: 24px; font-weight: 900; color: #fff; margin-top: 4px;" id="rouletteWinnerName">Agent</div>
+      </div>
+
+      <button id="btnCloseRoulette" class="btn-primary" style="margin-top: 20px; display: none; width: 100%; padding: 14px; font-size: 16px; font-weight: 800; background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%); color: #000; border: none;">
+        ✓ Confirm Heist Leader & Proceed
+      </button>
     </div>
   </div>
 

@@ -158,6 +158,83 @@ class SoundEffects {
         osc.start();
         osc.stop(this.ctx.currentTime + 0.35);
     }
+
+    // Bella Ciao theme riff (Money Heist tribute)
+    playBellaCiaoRiff() {
+        if (this.muted) return;
+        this.init();
+        const melody = [
+            { note: 329.63, dur: 0.16 }, // E4
+            { note: 440.00, dur: 0.16 }, // A4
+            { note: 493.88, dur: 0.16 }, // B4
+            { note: 523.25, dur: 0.28 }, // C5
+            { note: 440.00, dur: 0.32 }, // A4
+            { note: 329.63, dur: 0.16 }, // E4
+            { note: 440.00, dur: 0.16 }, // A4
+            { note: 493.88, dur: 0.16 }, // B4
+            { note: 523.25, dur: 0.28 }, // C5
+            { note: 440.00, dur: 0.32 }, // A4
+            { note: 329.63, dur: 0.16 }, // E4
+            { note: 440.00, dur: 0.16 }, // A4
+            { note: 493.88, dur: 0.16 }, // B4
+            { note: 523.25, dur: 0.20 }, // C5
+            { note: 493.88, dur: 0.20 }, // B4
+            { note: 440.00, dur: 0.20 }, // A4
+            { note: 523.25, dur: 0.20 }, // C5
+            { note: 493.88, dur: 0.20 }, // B4
+            { note: 440.00, dur: 0.20 }, // A4
+            { note: 659.25, dur: 0.60 }  // E5 (dramatic hold)
+        ];
+        let t = this.ctx.currentTime + 0.05;
+        melody.forEach(item => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(item.note, t);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + item.dur);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + item.dur);
+            t += item.dur * 1.05;
+        });
+    }
+
+    // Roulette spinning click
+    playRouletteTick(pitch = 850) {
+        if (this.muted) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(pitch, this.ctx.currentTime);
+        gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.04);
+    }
+
+    // Leader appointment chime
+    playLeaderAppointed() {
+        if (this.muted) return;
+        this.init();
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.08);
+            gain.gain.setValueAtTime(0.22, this.ctx.currentTime + idx * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.08 + 0.6);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * 0.08);
+            osc.stop(this.ctx.currentTime + idx * 0.08 + 0.6);
+        });
+    }
 }
 
 window.soundFx = new SoundEffects();

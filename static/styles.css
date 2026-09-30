@@ -1,15 +1,22 @@
-/* The Resistance: Office Heist - Theme & Layout */
+/* The Resistance: Office Heist - Money Heist (La Casa de Papel) Edition */
 :root {
-  --bg-dark: #0a0f1d;
-  --bg-card: rgba(18, 26, 47, 0.85);
-  --bg-card-hover: rgba(28, 38, 66, 0.95);
-  --border-glow: rgba(56, 189, 248, 0.3);
-  --border-subtle: rgba(255, 255, 255, 0.08);
+  --heist-red: #e50914;
+  --heist-crimson: #b81d24;
+  --heist-darkred: #450a0a;
+  --heist-gold: #f59e0b;
+  --heist-gold-light: #fef08a;
+  --heist-gold-glow: rgba(245, 158, 11, 0.4);
   
-  --resistance-blue: #00f2fe;
-  --resistance-gradient: linear-gradient(135deg, #0284c7 0%, #00f2fe 100%);
-  --saboteur-red: #ff3366;
-  --saboteur-gradient: linear-gradient(135deg, #be123c 0%, #ff3366 100%);
+  --bg-dark: #0a0b0e;
+  --bg-card: rgba(18, 20, 28, 0.92);
+  --bg-card-hover: rgba(28, 32, 46, 0.98);
+  --border-glow: rgba(229, 9, 20, 0.4);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  
+  --resistance-blue: #38bdf8;
+  --resistance-gradient: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+  --saboteur-red: #e50914;
+  --saboteur-gradient: linear-gradient(135deg, #991b1b 0%, #e50914 100%);
   --gold-accent: #f59e0b;
   --success-green: #10b981;
   --text-main: #f8fafc;
@@ -25,7 +32,7 @@
 }
 
 body {
-  background: radial-gradient(circle at 50% 10%, #152238 0%, #070b14 100%);
+  background: radial-gradient(circle at 50% 0%, #2b0b11 0%, #0a0b0e 100%);
   color: var(--text-main);
   min-height: 100vh;
   display: flex;
@@ -742,4 +749,251 @@ body {
     width: 100%;
     right: -100%;
   }
+}
+
+/* === MONEY HEIST (LA CASA DE PAPEL) SPECIALIZED COMPONENTS === */
+
+/* Universal Current Leader Banner (Shown on ALL screens) */
+.universal-leader-banner {
+  background: linear-gradient(90deg, rgba(229, 9, 20, 0.25) 0%, rgba(245, 158, 11, 0.25) 50%, rgba(229, 9, 20, 0.25) 100%);
+  border-bottom: 2px solid var(--heist-gold);
+  box-shadow: 0 4px 20px rgba(229, 9, 20, 0.2);
+  padding: 10px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  z-index: 90;
+}
+
+.universal-leader-banner::before {
+  content: "";
+  position: absolute;
+  top: 0; left: -100%; width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  animation: shineLeader 4s infinite linear;
+}
+
+@keyframes shineLeader {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+.leader-badge-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.leader-crown-icon {
+  font-size: 26px;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.8));
+  animation: bounceCrown 2s infinite ease-in-out;
+}
+
+@keyframes bounceCrown {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.leader-title-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--heist-gold);
+  font-weight: 800;
+}
+
+.leader-name-text {
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.leader-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Universal Synchronized Timer Pill */
+.universal-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border-glow);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--heist-gold);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.universal-timer-badge.danger {
+  border-color: var(--heist-red);
+  color: var(--heist-red);
+  animation: pulseDanger 1s infinite;
+}
+
+@keyframes pulseDanger {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px rgba(229, 9, 20, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(229, 9, 20, 0.8); }
+}
+
+/* Professor's Roulette Spin Modal */
+.roulette-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 11, 14, 0.95);
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.roulette-modal.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.roulette-box {
+  background: linear-gradient(180deg, #1b1317 0%, #0d0e12 100%);
+  border: 3px solid var(--heist-gold);
+  border-radius: 24px;
+  padding: 36px;
+  max-width: 580px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(245, 158, 11, 0.3), 0 0 100px rgba(229, 9, 20, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.roulette-dali-mask {
+  font-size: 56px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 0 16px rgba(229, 9, 20, 0.6));
+}
+
+.roulette-reel {
+  height: 90px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(245, 158, 11, 0.5);
+  border-radius: 14px;
+  margin: 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.roulette-reel::before, .roulette-reel::after {
+  content: "";
+  position: absolute;
+  top: 0; width: 40px; height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+.roulette-reel::before { left: 0; background: linear-gradient(90deg, #0d0e12, transparent); }
+.roulette-reel::after { right: 0; background: linear-gradient(-90deg, #0d0e12, transparent); }
+
+.roulette-name {
+  font-size: 26px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+  transition: all 0.05s ease;
+}
+
+.roulette-name.winner {
+  color: var(--heist-gold-light);
+  transform: scale(1.15);
+  text-shadow: 0 0 20px rgba(245, 158, 11, 0.9);
+}
+
+/* Toast alert for Leader change / announcements */
+.leader-toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-30px);
+  background: linear-gradient(135deg, #b81d24 0%, #1f0b0e 100%);
+  border: 2px solid var(--heist-gold);
+  border-radius: 14px;
+  padding: 14px 28px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  z-index: 3000;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 20px rgba(245, 158, 11, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.leader-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Mobile Host Command Deck */
+.mobile-host-panel {
+  background: linear-gradient(180deg, rgba(69, 10, 10, 0.9) 0%, rgba(18, 20, 28, 0.95) 100%);
+  border: 2px solid var(--heist-red);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px rgba(229, 9, 20, 0.25);
+}
+
+.mobile-host-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.btn-host-action {
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-host-action:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.btn-host-gold {
+  background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%);
+  border: none;
+  color: #000;
+  font-weight: 800;
+}
+
+.btn-host-danger {
+  background: linear-gradient(135deg, #991b1b 0%, #e50914 100%);
+  border: none;
+  color: #fff;
 }

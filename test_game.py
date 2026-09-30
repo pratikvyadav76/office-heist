@@ -100,5 +100,29 @@ class TestOfficeHeistGame(unittest.TestCase):
         m2_res = self.client.post("/api/resolve-mission")
         self.assertEqual(m2_res.json()["outcome"], "FAILED")
 
+    def test_spin_leader_and_timer(self):
+        self.client.post("/api/setup", json={"players": DEFAULT_PLAYERS, "pin": MODERATOR_PIN})
+        
+        # Test spin leader
+        spin_res = self.client.post("/api/spin-leader")
+        self.assertEqual(spin_res.status_code, 200)
+        new_leader = spin_res.json()["current_leader"]
+        self.assertIn(new_leader, DEFAULT_PLAYERS)
+        
+        # Test timer start
+        t_start = self.client.post("/api/timer-action", json={"action": "START", "seconds": 60})
+        self.assertEqual(t_start.status_code, 200)
+        self.assertTrue(t_start.json()["timer_running"])
+        
+        # Test timer pause
+        t_pause = self.client.post("/api/timer-action", json={"action": "PAUSE"})
+        self.assertEqual(t_pause.status_code, 200)
+        self.assertFalse(t_pause.json()["timer_running"])
+        
+        # Test timer reset
+        t_reset = self.client.post("/api/timer-action", json={"action": "RESET", "seconds": 90})
+        self.assertEqual(t_reset.status_code, 200)
+        self.assertEqual(t_reset.json()["timer_seconds"], 90)
+
 if __name__ == "__main__":
     unittest.main()

@@ -53,12 +53,71 @@
   </style>
 </head>
 <body>
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-    <div>
-      <div style="font-weight: 900; font-size: 18px; color: var(--resistance-blue);">💼 HEIST AGENT PAD</div>
-      <div style="font-size: 11px; color: var(--text-muted);">Confidential • For your eyes only</div>
+  <!-- Top Bar with Synced Timer & Host Deck Toggle -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <div style="font-size: 22px;">🎭</div>
+      <div>
+        <div style="font-weight: 900; font-size: 16px; color: var(--heist-red); letter-spacing: 0.5px;">LA CASA DE PAPEL</div>
+        <div style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Agent Handheld Pad</div>
+      </div>
     </div>
-    <div id="connBadge" style="font-size: 11px; padding: 4px 8px; border-radius: 12px; background: rgba(16, 185, 129, 0.2); color: var(--success-green);">● LIVE</div>
+
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <!-- Synced Timer Pill -->
+      <div id="mobileTimerPill" class="universal-timer-badge" style="font-size: 13px; padding: 4px 10px;">
+        ⏱️ <span id="mobileTimerDigits">01:30</span>
+      </div>
+      <button id="btnMobileHostToggle" class="btn-icon" style="background: rgba(229, 9, 20, 0.2); border-color: var(--heist-red); font-size: 11px; padding: 6px 10px;">
+        🛡️ Host
+      </button>
+      <div id="connBadge" style="font-size: 10px; padding: 3px 6px; border-radius: 10px; background: rgba(16, 185, 129, 0.2); color: var(--success-green);">● LIVE</div>
+    </div>
+  </div>
+
+  <!-- Universal Current Leader Banner (Money Heist) -->
+  <div id="mobileLeaderBanner" class="universal-leader-banner" style="border-radius: 12px; margin-bottom: 14px; padding: 8px 14px;">
+    <div class="leader-badge-left">
+      <div class="leader-crown-icon" style="font-size: 20px;">👑</div>
+      <div>
+        <div class="leader-title-tag" style="font-size: 9px;">The Professor's Team Leader</div>
+        <div class="leader-name-text" id="mobileLeaderName" style="font-size: 14px;">Awaiting Assignment...</div>
+      </div>
+    </div>
+    <div style="font-size: 11px; color: var(--heist-gold); font-weight: 800;" id="mobileProposalAttempt">
+      Attempt 1/5
+    </div>
+  </div>
+
+  <!-- Leader Toast Notification on Mobile -->
+  <div id="mobileLeaderToast" class="leader-toast">👑 NEW LEADER APPOINTED!</div>
+
+  <!-- Mobile Host Command Deck (PIN or Host authenticated) -->
+  <div id="mobileHostDeck" class="mobile-host-panel" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 16px;">🛡️</span>
+        <h4 style="color: var(--heist-gold); font-size: 14px; font-weight: 900; letter-spacing: 0.5px;">HOST CONTROL DECK</h4>
+      </div>
+      <button id="btnCloseMobileHost" class="btn-icon" style="font-size: 11px; padding: 2px 8px;">✕ Close</button>
+    </div>
+    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
+      Live game controls for Pratik Yadav, Om Naik & Vighnesh Jadhav.
+    </p>
+    <div class="mobile-host-grid">
+      <button id="btnMobSpinLeader" class="btn-host-action btn-host-gold">🎲 Spin Leader</button>
+      <button id="btnMobRotateLeader" class="btn-host-action">🔄 Pass Next</button>
+      <button id="btnMobTimerStart" class="btn-host-action" style="color: var(--success-green);">▶ Start Timer</button>
+      <button id="btnMobTimerPause" class="btn-host-action" style="color: var(--gold-accent);">⏸ Pause Timer</button>
+      <button id="btnMobApproveVote" class="btn-host-action" style="color: var(--success-green);">✓ Force Approve</button>
+      <button id="btnMobRejectVote" class="btn-host-action" style="color: var(--heist-red);">✕ Force Reject</button>
+      <button id="btnMobNextMission" class="btn-host-action">⏩ Next Mission</button>
+      <button id="btnMobShowWhispers" class="btn-host-action">😈 5 Saboteurs</button>
+    </div>
+    <div id="mobWhispersArea" style="display: none; margin-top: 12px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;">
+      <div style="font-size: 11px; color: var(--heist-gold); font-weight: 800; margin-bottom: 6px;">😈 The 5 Secret Saboteurs:</div>
+      <div id="mobSaboteursList" style="font-size: 12px; line-height: 1.6; color: #fff;"></div>
+    </div>
   </div>
 
   <!-- Player Identification -->
@@ -80,7 +139,7 @@
     <!-- Welcome Header -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
       <div>
-        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Active Agent</div>
+        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Active Operative</div>
         <div style="font-size: 20px; font-weight: 800; color: #fff;" id="agentNameDisplay">Agent</div>
       </div>
       <button id="btnSwitchPlayer" class="btn-icon" style="font-size: 11px;">Switch</button>
@@ -178,6 +237,21 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Mobile Host PIN Modal -->
+  <div id="mobPinModal" class="qr-modal">
+    <div class="qr-box" style="max-width: 320px; width: 88%;">
+      <div style="font-size: 36px; margin-bottom: 8px;">🔒</div>
+      <h3 style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">Host Moderator Deck</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">Enter PIN to unlock host controls:</p>
+      <input type="password" id="inputMobPin" placeholder="Enter PIN..." style="width: 100%; padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.5); border: 1px solid var(--border-subtle); color: #fff; font-size: 16px; text-align: center; letter-spacing: 4px; margin-bottom: 10px;">
+      <div id="mobPinError" style="display: none; color: var(--heist-red); font-size: 12px; font-weight: 700; margin-bottom: 10px;">Incorrect PIN</div>
+      <div style="display: flex; gap: 8px;">
+        <button id="btnSubmitMobPin" class="btn-primary" style="flex: 1; padding: 10px;">Unlock</button>
+        <button id="btnCancelMobPin" class="btn-icon" style="padding: 10px 14px;">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <script src="/static/player.js"></script>

@@ -24,6 +24,12 @@ function connectWebSocket() {
       const data = JSON.parse(event.data);
       if (data.type === 'STATE_UPDATE' || data.type === 'PROPOSAL_RESULT_ANNOUNCED') {
         updateState(data.state);
+      } else if (data.type === 'LEADER_SPUN') {
+        runRouletteAnimation(data.leader, () => {
+          if (data.state) updateState(data.state);
+        });
+      } else if (data.type === 'TIMER_UPDATE') {
+        syncTimer(data.timer_seconds, data.timer_running, data.timer_end_timestamp);
       } else if (data.type === 'MISSION_REVEAL') {
         handleMissionReveal(data);
       } else if (data.type === 'VOTE_CAST') {
@@ -60,10 +66,26 @@ async function fetchState() {
 // Update UI based on Game State
 function updateState(state) {
   gameState = state;
+  renderUniversalLeader();
+  if (state && state.timer_seconds !== undefined) {
+    syncTimer(state.timer_seconds, state.timer_running, state.timer_end_timestamp);
+  }
   renderScoreboard();
   renderMissionsTrack();
   renderPhase();
   renderModeratorDrawer();
+}
+
+function renderUniversalLeader() {
+  if (!gameState) return;
+  const cur = gameState.current_leader || 'Awaiting Role Assignment...';
+  const el = document.getElementById('univLeaderName');
+  if (el) {
+    if (el.innerText !== cur && el.innerText !== 'Awaiting Role Assignment...' && el.innerText !== 'Waiting for Game Start...') {
+      showLeaderToast(`👑 THE PROFESSOR CHOSE: ${cur}`);
+    }
+    el.innerText = cur;
+  }
 }
 
 // Render Scoreboard & Proposal Attempts
@@ -434,51 +456,149 @@ function copyWhisper(encodedMsg) {
   });
 }
 
-// Timer Functions
-function startTimer() {
-  if (isTimerRunning) return;
-  isTimerRunning = true;
-  window.soundFx.init();
-  timerInterval = setInterval(() => {
-    if (timerSeconds > 0) {
-      timerSeconds--;
-      updateTimerDisplay();
-      if (timerSeconds <= 10) {
-        window.soundFx.playWarning();
-      } else {
-        window.soundFx.playTick();
-      }
+// Universal Timer Synchronization & Backend Actions
+function syncTimer(seconds, isRunning, endTimestamp) {
+  timerSeconds = seconds;
+  isTimerRunning = isRunning;
+  
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  function renderDigits(sec) {
+    const mins = Math.floor(sec / 60);
+    const s = sec % 60;
+    const str = `${String(mins).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    const topDigits = document.getElementById('topTimerDigits');
+    const stageDigits = document.getElementById('timerDisplay');
+    const topBadge = document.getElementById('topNavTimer');
+    
+    if (topDigits) topDigits.innerText = str;
+    if (stageDigits) stageDigits.innerText = str;
+
+    if (sec <= 15 && isRunning) {
+      if (topBadge) topBadge.classList.add('danger');
+      if (stageDigits) stageDigits.classList.add('warning');
+      if (sec <= 10 && sec > 0) window.soundFx.playWarning();
     } else {
-      pauseTimer();
-      window.soundFx.playRejected();
-    }
-  }, 1000);
-}
-
-function pauseTimer() {
-  isTimerRunning = false;
-  clearInterval(timerInterval);
-}
-
-function resetTimer(secs = 90) {
-  pauseTimer();
-  timerSeconds = secs;
-  updateTimerDisplay();
-}
-
-function updateTimerDisplay() {
-  const m = Math.floor(timerSeconds / 60);
-  const s = timerSeconds % 60;
-  const str = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  const el = document.getElementById('timerDisplay');
-  if (el) {
-    el.innerText = str;
-    if (timerSeconds <= 15) {
-      el.classList.add('warning');
-    } else {
-      el.classList.remove('warning');
+      if (topBadge) topBadge.classList.remove('danger');
+      if (stageDigits) stageDigits.classList.remove('warning');
     }
   }
+
+  renderDigits(timerSeconds);
+
+  if (isRunning && endTimestamp > 0) {
+    timerInterval = setInterval(() => {
+      const nowSec = Date.now() / 1000;
+      const remaining = Math.max(0, Math.ceil(endTimestamp - nowSec));
+      renderDigits(remaining);
+      if (remaining <= 0) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        isTimerRunning = false;
+        renderDigits(0);
+        window.soundFx.playRejected();
+      }
+    }, 500);
+  }
+}
+
+async function startTimer() {
+  window.soundFx.init();
+  await fetch('/api/timer-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'START', seconds: timerSeconds })
+  });
+}
+
+async function pauseTimer() {
+  await fetch('/api/timer-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'PAUSE' })
+  });
+}
+
+async function resetTimer(secs = 90) {
+  await fetch('/api/timer-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'RESET', seconds: secs })
+  });
+}
+
+// Toast Alert
+function showLeaderToast(text) {
+  const toast = document.getElementById('leaderToast');
+  if (!toast) return;
+  toast.innerText = text;
+  toast.classList.add('show');
+  window.soundFx.playLeaderAppointed();
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+// Professor's Roulette Animation
+let isRouletteRunning = false;
+function runRouletteAnimation(winnerName, onComplete) {
+  if (isRouletteRunning) return;
+  isRouletteRunning = true;
+
+  const modal = document.getElementById('rouletteModal');
+  const reelText = document.getElementById('rouletteNameText');
+  const banner = document.getElementById('rouletteResultBanner');
+  const winnerText = document.getElementById('rouletteWinnerName');
+  const closeBtn = document.getElementById('btnCloseRoulette');
+
+  modal.classList.add('open');
+  banner.style.display = 'none';
+  closeBtn.style.display = 'none';
+  reelText.classList.remove('winner');
+
+  const roster = (gameState && gameState.players && gameState.players.length > 0)
+    ? gameState.players
+    : ['Operative A', 'Operative B', 'Operative C'];
+
+  let ticks = 0;
+  const maxTicks = 26;
+  let delay = 60;
+
+  function nextTick() {
+    ticks++;
+    const randomPlayer = roster[Math.floor(Math.random() * roster.length)];
+    reelText.innerText = randomPlayer;
+    window.soundFx.playRouletteTick(700 + (ticks * 15));
+
+    if (ticks < 14) delay = 60;
+    else if (ticks < 20) delay = 120;
+    else if (ticks < 24) delay = 220;
+    else delay = 380;
+
+    if (ticks >= maxTicks) {
+      reelText.innerText = winnerName;
+      reelText.classList.add('winner');
+      winnerText.innerText = winnerName;
+      banner.style.display = 'block';
+      closeBtn.style.display = 'block';
+      window.soundFx.playLeaderAppointed();
+      isRouletteRunning = false;
+
+      closeBtn.onclick = () => {
+        modal.classList.remove('open');
+        if (onComplete) onComplete();
+      };
+      setTimeout(() => {
+        modal.classList.remove('open');
+        if (onComplete) onComplete();
+      }, 3500);
+    } else {
+      setTimeout(nextTick, delay);
+    }
+  }
+
+  nextTick();
 }
 
 // Kiosk Pass-the-Screen Handlers
@@ -494,6 +614,45 @@ function openKioskModal(playerName) {
 document.addEventListener('DOMContentLoaded', () => {
   connectWebSocket();
   fetchState();
+
+  // Bella Ciao Theme
+  const bellaBtn = document.getElementById('btnBellaCiao');
+  if (bellaBtn) {
+    bellaBtn.onclick = () => {
+      window.soundFx.playBellaCiaoRiff();
+    };
+  }
+
+  // Professor's Roulette Spin
+  const rouletteBtn = document.getElementById('btnTriggerRoulette');
+  if (rouletteBtn) {
+    rouletteBtn.onclick = async () => {
+      window.soundFx.playClick();
+      const res = await fetch('/api/spin-leader', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      const data = await res.json();
+      if (data.current_leader) {
+        runRouletteAnimation(data.current_leader, () => fetchState());
+      }
+    };
+  }
+
+  // Pass Leader Clockwise
+  const nextLeaderBtn = document.getElementById('btnRotateNextLeader');
+  if (nextLeaderBtn) {
+    nextLeaderBtn.onclick = async () => {
+      window.soundFx.playClick();
+      await fetch('/api/rotate-leader-manually', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      fetchState();
+    };
+  }
   
   // Sound Toggle
   document.getElementById('btnSound').onclick = () => {
@@ -596,10 +755,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Setup Actions
   document.getElementById('btnStartGame').onclick = async () => {
     window.soundFx.playClick();
+    const pin = sessionStorage.getItem('heist_mod_pin') || '2026';
     await fetch('/api/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ players: gameState.players })
+      body: JSON.stringify({ players: gameState.players, pin: pin })
     });
     fetchState();
   };
