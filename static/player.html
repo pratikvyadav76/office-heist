@@ -54,17 +54,25 @@
 </head>
 <body>
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-    <div style="font-weight: 900; font-size: 18px; color: var(--resistance-blue);">💼 HEIST AGENT PAD</div>
+    <div>
+      <div style="font-weight: 900; font-size: 18px; color: var(--resistance-blue);">💼 HEIST AGENT PAD</div>
+      <div style="font-size: 11px; color: var(--text-muted);">Confidential • For your eyes only</div>
+    </div>
     <div id="connBadge" style="font-size: 11px; padding: 4px 8px; border-radius: 12px; background: rgba(16, 185, 129, 0.2); color: var(--success-green);">● LIVE</div>
   </div>
 
   <!-- Player Identification -->
   <div id="selectPlayerCard" class="phase-card" style="margin-bottom: 16px;">
-    <h3 style="font-size: 15px; margin-bottom: 8px;">Select Your Name</h3>
+    <h3 style="font-size: 16px; margin-bottom: 4px; color: var(--gold-accent);">👋 Who are you?</h3>
+    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+      Select your corporate name from the roster to connect your personal agent pad:
+    </p>
     <select id="playerSelect" style="width: 100%; padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.4); color: #fff; border: 1px solid var(--border-subtle); font-size: 15px; font-weight: 700; margin-bottom: 12px;">
       <option value="">-- Choose your name --</option>
     </select>
-    <button id="btnConfirmPlayer" class="btn-primary" style="width: 100%;">Enter Mission</button>
+    <button id="btnConfirmPlayer" class="btn-primary" style="width: 100%; padding: 14px; font-size: 15px;">
+      Connect My Agent Pad ➔
+    </button>
   </div>
 
   <!-- Main Active Player UI -->

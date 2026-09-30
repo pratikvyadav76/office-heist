@@ -14,8 +14,11 @@
     <div class="logo-area">
       <div class="logo-icon">💼⚡</div>
       <div class="logo-text">
-        <h1>Office Heist</h1>
-        <div class="subtitle">The Resistance • Fun Friday Corporate Edition</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h1>Office Heist</h1>
+          <span style="font-size: 10px; background: rgba(0, 242, 254, 0.2); color: var(--resistance-blue); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--resistance-blue); font-weight: 700;">🖥️ BIG SCREEN / ROOM DISPLAY</span>
+        </div>
+        <div class="subtitle">The Resistance • Fun Friday Corporate Edition (Players join on phone)</div>
       </div>
     </div>
     
@@ -390,34 +393,30 @@
 
   <!-- QR Join Modal -->
   <div id="qrModal" class="qr-modal">
-    <div class="qr-box">
-      <h3 style="font-size: 20px; font-weight: 800; margin-bottom: 6px;">📱 Player Mobile Submission</h3>
-      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
-        Scan with your phone camera to submit your secret vote!
+    <div class="qr-box" style="max-width: 420px; width: 92%;">
+      <h3 style="font-size: 20px; font-weight: 800; margin-bottom: 4px;">📱 Join as Agent on Mobile</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+        Scan with your phone camera or open the link below on your phone:
       </p>
       
-      <!-- Toggle between Google Form and Local Pad -->
-      <div style="display: flex; gap: 8px; margin-bottom: 12px; justify-content: center;">
-        <button id="btnTabGoogleForm" class="btn-icon" style="background: rgba(0, 242, 254, 0.2); border-color: var(--resistance-blue); font-size: 11px;">
-          📋 Google / MS Form
-        </button>
-        <button id="btnTabLocalPad" class="btn-icon" style="font-size: 11px;">
-          💻 Local Pad
-        </button>
+      <div id="qrCodeTarget" style="display: inline-block; padding: 12px; background: #fff; border-radius: 12px; margin-bottom: 12px;"></div>
+      
+      <div style="background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; border: 1px solid var(--border-subtle); margin-bottom: 12px;">
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Mobile Agent Link:</div>
+        <div style="font-family: monospace; font-size: 13px; color: var(--resistance-blue); word-break: break-all; font-weight: 700;" id="qrUrlDisplay">
+          https://office-heist.onrender.com/play
+        </div>
       </div>
 
-      <div id="googleFormConfig" style="margin-bottom: 12px;">
-        <input type="text" id="inputGoogleFormUrl" placeholder="Paste your Google / MS Form link here..." style="width: 100%; padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-subtle); color: #fff; font-size: 12px; margin-bottom: 6px;">
-        <button id="btnUpdateGoogleForm" class="btn-icon" style="width: 100%; justify-content: center; font-size: 11px;">
-          ✓ Update QR Code with Form Link
+      <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+        <button id="btnCopyMobileLink" class="btn-primary" style="flex: 1; padding: 10px; font-size: 13px;">
+          📋 Copy Link (Teams/WhatsApp)
         </button>
+        <button id="btnCloseQr" class="btn-icon" style="padding: 10px 18px;">Close</button>
       </div>
-
-      <div id="qrCodeTarget" style="display: inline-block; padding: 10px; background: #fff; border-radius: 12px; margin-bottom: 14px;"></div>
-      <div style="font-family: monospace; font-size: 12px; color: var(--resistance-blue); margin-bottom: 16px; word-break: break-all;" id="qrUrlDisplay">
-        http://192.168.0.102:8088/play
+      <div id="copySuccessMsg" style="display: none; font-size: 11px; color: var(--success-green); font-weight: 700; margin-top: 4px;">
+        ✓ Link copied to clipboard! Paste in your chat.
       </div>
-      <button id="btnCloseQr" class="btn-icon" style="width: 100%; justify-content: center;">Close</button>
     </div>
   </div>
 

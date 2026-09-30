@@ -553,11 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('modDrawer').classList.remove('open');
   };
   
-  // QR Modal & Google Form Toggle
-  let activeQrUrl = localStorage.getItem('heist_form_url') || '';
-  const inputForm = document.getElementById('inputGoogleFormUrl');
-  if (activeQrUrl) inputForm.value = activeQrUrl;
-
+  // QR Modal Logic
   function renderQr(targetUrl) {
     document.getElementById('qrUrlDisplay').innerText = targetUrl;
     if (window.qrcode) {
@@ -569,46 +565,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('btnQr').onclick = () => {
-    let localUrl = '';
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      localUrl = `${window.location.origin}/play`;
-    } else {
+    // Generate mobile join link based on the current website URL
+    let playUrl = `${window.location.origin}/play`;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       const ip = gameState ? gameState.local_ip : window.location.hostname;
-      const port = window.location.port || '8088';
-      localUrl = `http://${ip}:${port}/play`;
+      const port = window.location.port ? `:${window.location.port}` : '';
+      playUrl = `http://${ip}${port}/play`;
     }
-    const urlToUse = activeQrUrl || localUrl;
-    renderQr(urlToUse);
+    renderQr(playUrl);
+    document.getElementById('copySuccessMsg').style.display = 'none';
     document.getElementById('qrModal').classList.add('open');
   };
 
-  document.getElementById('btnTabGoogleForm').onclick = () => {
-    document.getElementById('googleFormConfig').style.display = 'block';
-    document.getElementById('btnTabGoogleForm').style.background = 'rgba(0, 242, 254, 0.2)';
-    document.getElementById('btnTabGoogleForm').style.borderColor = 'var(--resistance-blue)';
-    document.getElementById('btnTabLocalPad').style.background = 'rgba(255,255,255,0.05)';
-    document.getElementById('btnTabLocalPad').style.borderColor = 'var(--border-subtle)';
-    if (activeQrUrl) renderQr(activeQrUrl);
-  };
-
-  document.getElementById('btnTabLocalPad').onclick = () => {
-    document.getElementById('googleFormConfig').style.display = 'none';
-    document.getElementById('btnTabLocalPad').style.background = 'rgba(0, 242, 254, 0.2)';
-    document.getElementById('btnTabLocalPad').style.borderColor = 'var(--resistance-blue)';
-    document.getElementById('btnTabGoogleForm').style.background = 'rgba(255,255,255,0.05)';
-    document.getElementById('btnTabGoogleForm').style.borderColor = 'var(--border-subtle)';
-    const ip = gameState ? gameState.local_ip : window.location.hostname;
-    const port = window.location.port || '8088';
-    renderQr(`http://${ip}:${port}/play`);
-  };
-
-  document.getElementById('btnUpdateGoogleForm').onclick = () => {
-    const val = inputForm.value.trim();
-    if (val) {
-      activeQrUrl = val;
-      localStorage.setItem('heist_form_url', val);
-      renderQr(val);
-      alert('QR code updated to your Google / MS Form link!');
+  document.getElementById('btnCopyMobileLink').onclick = async () => {
+    const url = document.getElementById('qrUrlDisplay').innerText.trim();
+    try {
+      await navigator.clipboard.writeText(url);
+      const msg = document.getElementById('copySuccessMsg');
+      msg.style.display = 'block';
+      setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    } catch (e) {
+      prompt('Copy this link for your colleagues:', url);
     }
   };
 

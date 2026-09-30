@@ -5,8 +5,11 @@ let playerState = null;
 let ws = null;
 let selectedMobileTeam = new Set();
 
-function init() {
-  populatePlayerList();
+async function init() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramPlayer = urlParams.get('player') || urlParams.get('name') || urlParams.get('user');
+
+  await populatePlayerList(paramPlayer);
   connectWebSocket();
   setupEventListeners();
   
@@ -15,20 +18,37 @@ function init() {
   }
 }
 
-async function populatePlayerList() {
+async function populatePlayerList(preferredParam = '') {
   try {
     const res = await fetch('/api/state?role=public');
     const data = await res.json();
     const select = document.getElementById('playerSelect');
     select.innerHTML = '<option value="">-- Choose your name --</option>';
     
+    let matchedName = null;
+
     data.players.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p;
       opt.innerText = p;
+
+      // If preferredParam passed via URL e.g. ?user=tanmay.indore or ?user=Tanmay
+      if (preferredParam) {
+        const cleanParam = preferredParam.trim().toLowerCase();
+        if (p.toLowerCase().includes(cleanParam)) {
+          matchedName = p;
+        }
+      }
+
       if (p === playerName) opt.selected = true;
       select.appendChild(opt);
     });
+
+    if (matchedName) {
+      playerName = matchedName;
+      localStorage.setItem('heist_player_name', matchedName);
+      select.value = matchedName;
+    }
   } catch (e) {
     console.error('Error fetching player roster:', e);
   }
