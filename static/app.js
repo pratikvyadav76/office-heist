@@ -459,7 +459,8 @@ function renderDebatePhase() {
 function updateDebateBallotStatus() {
   if (!gameState) return;
   const votedCount = gameState.proposal_votes_count || 0;
-  const totalCount = gameState.players ? gameState.players.length : 22;
+  const teamList = (gameState.proposed_team && gameState.proposed_team.length > 0) ? gameState.proposed_team : (gameState.players || []);
+  const totalCount = teamList.length;
   const pct = Math.min(100, Math.round((votedCount / (totalCount || 1)) * 100));
 
   const countEl = document.getElementById('liveVotesCount');
@@ -471,10 +472,10 @@ function updateDebateBallotStatus() {
   if (barEl) barEl.style.width = `${pct}%`;
 
   const votersGrid = document.getElementById('ballotVotersGrid');
-  if (votersGrid && gameState.players) {
+  if (votersGrid && teamList.length > 0) {
     votersGrid.innerHTML = '';
     const votedList = gameState.proposal_voted_players || [];
-    gameState.players.forEach(pName => {
+    teamList.forEach(pName => {
       const hasVoted = votedList.includes(pName);
       const chip = document.createElement('div');
       chip.className = `voter-chip ${hasVoted ? 'voted' : 'waiting'}`;

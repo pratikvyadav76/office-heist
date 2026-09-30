@@ -246,33 +246,40 @@ function renderPlayerUI() {
       waitText.innerText = `Leader ${playerState.current_leader} is selecting the crew for Mission ${playerState.current_mission}...`;
     }
   } else if (phase === 'DEBATE_AND_VOTE') {
-    voteSec.style.display = 'block';
-    waitCard.style.display = 'none';
+    if (playerState.is_on_proposed_team) {
+      voteSec.style.display = 'block';
+      waitCard.style.display = 'none';
 
-    const curMission = playerState.current_mission_info || (playerState.missions && playerState.missions[playerState.current_mission - 1]);
-    const mTitleEl = document.getElementById('mobileVoteMissionTitle');
-    if (mTitleEl && curMission) {
-      mTitleEl.innerText = `Mission ${playerState.current_mission}: ${curMission.title} (${curMission.story})`;
-    }
-    
-    // Show proposed chips
-    const chipsCont = document.getElementById('mobileProposedChips');
-    chipsCont.innerHTML = '';
-    (playerState.proposed_team || []).forEach(n => {
-      const c = document.createElement('div');
-      c.className = 'agent-badge';
-      c.style.fontSize = '12px';
-      c.style.padding = '4px 10px';
-      c.innerText = `🕵️‍♂️ ${n}`;
-      chipsCont.appendChild(c);
-    });
-    
-    if (playerState.has_voted_proposal) {
-      document.getElementById('mobileVoteButtons').style.display = 'none';
-      document.getElementById('mobileVoteConfirmation').style.display = 'block';
+      const curMission = playerState.current_mission_info || (playerState.missions && playerState.missions[playerState.current_mission - 1]);
+      const mTitleEl = document.getElementById('mobileVoteMissionTitle');
+      if (mTitleEl && curMission) {
+        mTitleEl.innerText = `Mission ${playerState.current_mission}: ${curMission.title} (${curMission.story})`;
+      }
+      
+      // Show proposed chips
+      const chipsCont = document.getElementById('mobileProposedChips');
+      chipsCont.innerHTML = '';
+      (playerState.proposed_team || []).forEach(n => {
+        const c = document.createElement('div');
+        c.className = 'agent-badge';
+        c.style.fontSize = '12px';
+        c.style.padding = '4px 10px';
+        c.innerText = `🕵️‍♂️ ${n}`;
+        chipsCont.appendChild(c);
+      });
+      
+      if (playerState.has_voted_proposal) {
+        document.getElementById('mobileVoteButtons').style.display = 'none';
+        document.getElementById('mobileVoteConfirmation').style.display = 'block';
+      } else {
+        document.getElementById('mobileVoteButtons').style.display = 'flex';
+        document.getElementById('mobileVoteConfirmation').style.display = 'none';
+      }
     } else {
-      document.getElementById('mobileVoteButtons').style.display = 'flex';
-      document.getElementById('mobileVoteConfirmation').style.display = 'none';
+      voteSec.style.display = 'none';
+      waitCard.style.display = 'block';
+      const teamNames = (playerState.proposed_team || []).map(p => p.split(' ')[0]).join(', ');
+      waitText.innerText = `You are NOT on this mission team. Only the selected strike team (${teamNames}) are voting on their phones!`;
     }
   } else if (phase === 'MISSION_ACTION') {
     if (playerState.is_on_proposed_team) {

@@ -545,7 +545,7 @@ async def cast_proposal_vote(req: ProposalVoteRequest):
         "type": "VOTE_CAST", 
         "player": req.player_name, 
         "total_votes": len(game.proposal_votes),
-        "total_players": len(game.players),
+        "total_players": len(game.proposed_team) if game.proposed_team else len(game.players),
         "voted_players": list(game.proposal_votes.keys())
     })
     return {"status": "ok", "voted": len(game.proposal_votes)}
