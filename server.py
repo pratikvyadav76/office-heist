@@ -218,6 +218,7 @@ class GameState:
         self.timer_running: bool = False
         self.timer_end_timestamp: float = 0.0
         self.history_log: List[Dict[str, Any]] = []
+        self.claimed_devices: Dict[str, str] = {}
 
     def assign_roles(self, custom_saboteurs: Optional[List[str]] = None):
         if custom_saboteurs and len(custom_saboteurs) == self.saboteur_count:
@@ -293,7 +294,8 @@ class GameState:
             "timer_end_timestamp": self.timer_end_timestamp if self.timer_running else 0,
             "history_log": self.history_log,
             "local_ip": get_local_ip(),
-            "moderators": MODERATORS
+            "moderators": MODERATORS,
+            "claimed_players": list(self.claimed_devices.keys())
         }
 
     def get_moderator_state(self) -> dict:
@@ -324,6 +326,7 @@ class GameState:
         pub["is_on_proposed_team"] = matched_player in self.proposed_team
         pub["has_voted_proposal"] = matched_player in self.proposal_votes
         pub["has_submitted_mission"] = matched_player in self.mission_submissions
+        pub["claimed_by_device"] = self.claimed_devices.get(matched_player)
         return pub
 
     def log_event(self, event_type: str, details: str):
@@ -359,7 +362,8 @@ class GameState:
                 "proposal_attempt": self.proposal_attempt,
                 "proposal_votes": self.proposal_votes,
                 "mission_submissions": self.mission_submissions,
-                "history_log": self.history_log
+                "history_log": self.history_log,
+                "claimed_devices": self.claimed_devices
             }
             with open(STATE_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
@@ -400,6 +404,7 @@ class GameState:
                     self.proposal_votes = data.get("proposal_votes", {})
                     self.mission_submissions = data.get("mission_submissions", {})
                     self.history_log = data.get("history_log", [])
+                    self.claimed_devices = data.get("claimed_devices", {})
             except Exception as e:
                 print(f"Error loading state: {e}")
 
@@ -452,6 +457,15 @@ class TimerActionRequest(BaseModel):
 class SpinLeaderRequest(BaseModel):
     pin: Optional[str] = None
 
+class ClaimPlayerRequest(BaseModel):
+    player_name: str
+    device_id: str
+
+class ReleasePlayerRequest(BaseModel):
+    player_name: str
+    device_id: Optional[str] = None
+    pin: Optional[str] = None
+
 def verify_moderator_pin(pin: Optional[str]):
     if not pin or str(pin).strip() != MODERATOR_PIN:
         raise HTTPException(status_code=403, detail="Invalid Moderator PIN")
@@ -465,6 +479,68 @@ async def get_state(role: str = "public", player: Optional[str] = None, pin: Opt
     elif player:
         return game.get_player_state(player)
     return game.get_public_state()
+
+@app.post("/api/claim-player")
+async def claim_player(req: ClaimPlayerRequest):
+    matched_player = None
+    for p in game.players:
+        if req.player_name.lower() in p.lower():
+            matched_player = p
+            break
+    if not matched_player:
+        matched_player = req.player_name
+
+    existing_device = game.claimed_devices.get(matched_player)
+    if existing_device and existing_device != req.device_id:
+        raise HTTPException(
+            status_code=409, 
+            detail=f"🔒 {matched_player} is already logged in on another device! Ask the Moderator to release this session if you switched devices."
+        )
+
+    game.claimed_devices[matched_player] = req.device_id
+    game.save()
+    await manager.broadcast({
+        "type": "PLAYER_CLAIMED", 
+        "player": matched_player, 
+        "claimed_players": list(game.claimed_devices.keys())
+    })
+    return {"status": "ok", "player_name": matched_player}
+
+@app.post("/api/release-player")
+async def release_player(req: ReleasePlayerRequest):
+    matched_player = None
+    for p in game.players:
+        if req.player_name.lower() in p.lower():
+            matched_player = p
+            break
+    if not matched_player:
+        matched_player = req.player_name
+
+    existing_device = game.claimed_devices.get(matched_player)
+    if existing_device:
+        if (req.pin and req.pin.strip() == MODERATOR_PIN) or (req.device_id and req.device_id == existing_device) or (not req.device_id and not req.pin):
+            del game.claimed_devices[matched_player]
+            game.save()
+            await manager.broadcast({
+                "type": "PLAYER_RELEASED", 
+                "player": matched_player, 
+                "claimed_players": list(game.claimed_devices.keys())
+            })
+    return {"status": "ok", "released": matched_player}
+
+@app.post("/api/release-all-devices")
+async def release_all_devices(data: Optional[Dict[str, Any]] = None):
+    pin = data.get("pin") if isinstance(data, dict) else None
+    if pin and str(pin).strip() != MODERATOR_PIN:
+        raise HTTPException(status_code=403, detail="Invalid Moderator PIN")
+    game.claimed_devices = {}
+    game.save()
+    await manager.broadcast({
+        "type": "PLAYER_RELEASED", 
+        "player": "ALL", 
+        "claimed_players": []
+    })
+    return {"status": "ok", "detail": "All device locks released"}
 
 @app.post("/api/verify-mod-pin")
 async def verify_pin(data: Dict[str, str]):

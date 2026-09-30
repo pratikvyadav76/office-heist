@@ -223,5 +223,40 @@ class TestOfficeHeistGame(unittest.TestCase):
         self.assertEqual(res_ok.status_code, 200)
         self.assertEqual(res_ok.json()["state"]["phase"], "SETUP")
 
+    def test_single_device_login_and_claim(self):
+        player = DEFAULT_PLAYERS[0]
+        dev_a = "device_phone_A_123"
+        dev_b = "device_phone_B_456"
+
+        # Device A claims player
+        res_a = self.client.post("/api/claim-player", json={"player_name": player, "device_id": dev_a})
+        self.assertEqual(res_a.status_code, 200)
+
+        # Device A re-claiming (refreshing) succeeds
+        res_a_refresh = self.client.post("/api/claim-player", json={"player_name": player, "device_id": dev_a})
+        self.assertEqual(res_a_refresh.status_code, 200)
+
+        # Device B trying to claim same player is REJECTED with 409 Conflict
+        res_b = self.client.post("/api/claim-player", json={"player_name": player, "device_id": dev_b})
+        self.assertEqual(res_b.status_code, 409)
+        self.assertIn("already logged in on another device", res_b.json()["detail"])
+
+        # State reports claimed player
+        state = self.client.get("/api/state").json()
+        self.assertIn(player, state["claimed_players"])
+
+        # Release from Device A
+        res_rel = self.client.post("/api/release-player", json={"player_name": player, "device_id": dev_a})
+        self.assertEqual(res_rel.status_code, 200)
+
+        # Now Device B can claim
+        res_b_now = self.client.post("/api/claim-player", json={"player_name": player, "device_id": dev_b})
+        self.assertEqual(res_b_now.status_code, 200)
+
+        # Release all devices
+        res_rel_all = self.client.post("/api/release-all-devices")
+        self.assertEqual(res_rel_all.status_code, 200)
+        self.assertEqual(len(self.client.get("/api/state").json()["claimed_players"]), 0)
+
 if __name__ == "__main__":
     unittest.main()

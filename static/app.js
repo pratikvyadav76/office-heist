@@ -1341,6 +1341,23 @@ document.addEventListener('DOMContentLoaded', () => {
     await fetch('/api/rotate-leader-manually', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     fetchState();
   };
+
+  const btnRelDev = document.getElementById('btnModReleaseDevices');
+  if (btnRelDev) {
+    btnRelDev.onclick = async () => {
+      if (confirm('Release all mobile phone device locks? This allows any disconnected players to re-claim their profile.')) {
+        window.soundFx.playClick();
+        const pin = sessionStorage.getItem('heist_mod_pin') || '2026';
+        await fetch('/api/release-all-devices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin })
+        });
+        alert('All mobile phone locks have been released!');
+        fetchState();
+      }
+    };
+  }
   
   document.getElementById('btnModResetGame').onclick = async () => {
     if (confirm('Are you sure you want to reset the game back to setup?')) {

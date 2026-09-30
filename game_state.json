@@ -105,5 +105,6 @@
   "proposal_attempt": 1,
   "proposal_votes": {},
   "mission_submissions": {},
-  "history_log": []
+  "history_log": [],
+  "claimed_devices": {}
 }

@@ -5,6 +5,15 @@ let playerState = null;
 let ws = null;
 let selectedMobileTeam = new Set();
 
+function getDeviceId() {
+  let id = localStorage.getItem('heist_device_id');
+  if (!id) {
+    id = 'dev_' + Math.random().toString(36).substring(2, 12) + '_' + Date.now().toString(36);
+    localStorage.setItem('heist_device_id', id);
+  }
+  return id;
+}
+
 async function init() {
   const urlParams = new URLSearchParams(window.location.search);
   const paramPlayer = urlParams.get('player') || urlParams.get('name') || urlParams.get('user');
@@ -14,7 +23,30 @@ async function init() {
   setupEventListeners();
   
   if (playerName) {
-    switchToActivePlayer();
+    try {
+      const claimRes = await fetch('/api/claim-player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_name: playerName, device_id: getDeviceId() })
+      });
+      if (claimRes.ok) {
+        switchToActivePlayer();
+      } else {
+        const err = await claimRes.json();
+        localStorage.removeItem('heist_player_name');
+        playerName = '';
+        const errorEl = document.getElementById('loginErrorMsg');
+        if (errorEl) {
+          errorEl.innerText = err.detail || '⚠️ Profile claimed on another device.';
+          errorEl.style.display = 'block';
+        }
+        document.getElementById('selectPlayerCard').style.display = 'block';
+        document.getElementById('activePlayerUI').style.display = 'none';
+        await populatePlayerList();
+      }
+    } catch (e) {
+      switchToActivePlayer();
+    }
   }
 }
 
@@ -26,23 +58,33 @@ async function populatePlayerList(preferredParam = '') {
     select.innerHTML = '<option value="">-- Choose your name --</option>';
     
     let matchedName = null;
-
+    const claimedList = data.claimed_players || [];
     const HOST_USERNAMES = ['pratik.yadav', 'om.naik', 'vighnesh.jadhav'];
 
     data.players.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p;
-      opt.innerText = p;
+      const isClaimedByMe = (p === playerName);
+      const isClaimedByOther = claimedList.includes(p) && !isClaimedByMe;
+
+      if (isClaimedByOther) {
+        opt.innerText = `🔒 ${p} (Logged in on another phone)`;
+        opt.disabled = true;
+      } else if (isClaimedByMe) {
+        opt.innerText = `📱 ${p} (Your phone)`;
+        opt.selected = true;
+      } else {
+        opt.innerText = p;
+      }
 
       // If preferredParam passed via URL e.g. ?user=tanmay.indore or ?user=Tanmay
       if (preferredParam) {
         const cleanParam = preferredParam.trim().toLowerCase();
-        if (p.toLowerCase().includes(cleanParam)) {
+        if (p.toLowerCase().includes(cleanParam) && !isClaimedByOther) {
           matchedName = p;
         }
       }
 
-      if (p === playerName) opt.selected = true;
       select.appendChild(opt);
     });
 
@@ -86,6 +128,11 @@ function connectWebSocket() {
         if (playerName) refreshPlayerState();
       } else if (data.type === 'TIMER_UPDATE') {
         syncMobileTimer(data.timer_seconds, data.timer_running, data.timer_end_timestamp);
+      } else if (data.type === 'PLAYER_CLAIMED' || data.type === 'PLAYER_RELEASED') {
+        const selectCard = document.getElementById('selectPlayerCard');
+        if (selectCard && selectCard.style.display !== 'none') {
+          populatePlayerList();
+        }
       }
     } catch (e) {
       console.error(e);
@@ -366,21 +413,60 @@ function updateMobileProposalButton() {
 
 function setupEventListeners() {
   // Select Player
-  document.getElementById('btnConfirmPlayer').onclick = () => {
+  document.getElementById('btnConfirmPlayer').onclick = async () => {
     const val = document.getElementById('playerSelect').value;
-    if (val) {
-      playerName = val;
-      localStorage.setItem('heist_player_name', val);
+    const errorEl = document.getElementById('loginErrorMsg');
+    if (errorEl) errorEl.style.display = 'none';
+    if (!val) {
+      if (errorEl) {
+        errorEl.innerText = '⚠️ Please choose your name from the roster.';
+        errorEl.style.display = 'block';
+      }
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/claim-player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_name: val, device_id: getDeviceId() })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        if (errorEl) {
+          errorEl.innerText = err.detail || '⚠️ This profile is already logged in on another device!';
+          errorEl.style.display = 'block';
+        } else {
+          alert(err.detail || 'Profile locked on another device!');
+        }
+        await populatePlayerList();
+        return;
+      }
+      const data = await res.json();
+      playerName = data.player_name || val;
+      localStorage.setItem('heist_player_name', playerName);
       switchToActivePlayer();
+    } catch (e) {
+      console.error(e);
     }
   };
   
   // Switch Player
-  document.getElementById('btnSwitchPlayer').onclick = () => {
-    localStorage.removeItem('heist_player_name');
-    playerName = '';
-    document.getElementById('selectPlayerCard').style.display = 'block';
-    document.getElementById('activePlayerUI').style.display = 'none';
+  document.getElementById('btnSwitchPlayer').onclick = async () => {
+    if (confirm(`Disconnect and release ${playerName} from this phone?`)) {
+      try {
+        await fetch('/api/release-player', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player_name: playerName, device_id: getDeviceId() })
+        });
+      } catch (e) {}
+      localStorage.removeItem('heist_player_name');
+      playerName = '';
+      document.getElementById('selectPlayerCard').style.display = 'block';
+      document.getElementById('activePlayerUI').style.display = 'none';
+      await populatePlayerList();
+    }
   };
   
   // Press and Hold Role Card Reveal
